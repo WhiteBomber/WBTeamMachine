@@ -3272,7 +3272,7 @@ html[data-wb-build-mode="public"] #wbOwnedResetSettingsRow{display:none!importan
 </div>
 <button class="wb-owned-reset-btn" id="wbResetOwnedCharactersBtn" type="button">Reset All Owned</button>
 </div>
-<div class="wb-settings-data"><div class="wb-settings-row-title">App Data</div><div class="wb-settings-row-sub">Backup or load your saved roster, team, support, and preference data.</div><div class="wb-settings-data-actions"><button id="wbExportBackupBtn" type="button">Backup Data</button><button id="wbImportBackupBtn" type="button">Load Data</button><button class="wb-bake-ratings-btn" id="wbBakeRatingsIntoHtmlBtn" type="button">Bake Ratings + Support Tiers + META/WB/Counters Into HTML</button></div><div class="wb-bake-ratings-note" id="wbBakeRatingsNote">Creates a new HTML with the current WB Tier, character star ratings, owner role/tag edits, Support Tier rankings, portrait file references, PvP META teams, their saved counter teams, and WB teams saved into the app while images stay in the images folder. Other My Teams stay personal. No JSON backup is needed.</div><div class="wb-portrait-status" id="wbPortraitStatus">Portraits: <strong>366</strong> loaded • <strong>28</strong> letter placeholders • 394 total</div><input accept=".json,application/json,text/json,text/plain,*/*" hidden="" id="wbImportBackupFile" type="file"></div></div></div>
+<div class="wb-settings-data"><div class="wb-settings-row-title">App Data</div><div class="wb-settings-row-sub">Backup or load your saved roster, team, support, and preference data.</div><div class="wb-settings-data-actions"><button id="wbExportBackupBtn" type="button">Backup Data</button><button id="wbImportBackupBtn" type="button">Load Data</button><button class="wb-bake-ratings-btn" id="wbBakeRatingsIntoHtmlBtn" type="button">Bake Ratings + Support Tiers + META/WB/Counters Into HTML</button></div><div class="wb-bake-ratings-note" id="wbBakeRatingsNote">Creates a new HTML with the current WB Tier, character star ratings, owner role/tag edits, Support Tier rankings, embedded portraits, PvP META teams, their saved counter teams, and WB teams saved into the same standalone HTML. Other My Teams stay personal. No JSON backup is needed.</div><div class="wb-portrait-status" id="wbPortraitStatus">Portraits: <strong>366</strong> loaded • <strong>28</strong> letter placeholders • 394 total</div><input accept=".json,application/json,text/json,text/plain,*/*" hidden="" id="wbImportBackupFile" type="file"></div></div></div>
 <div aria-hidden="true" class="wb-new-player-overlay" id="wbNewPlayerOverlay">
   <div aria-labelledby="wbNewPlayerTitle" aria-modal="true" class="wb-new-player-chat" role="dialog">
     <div class="wb-new-player-chat-head">
@@ -14867,20 +14867,20 @@ body.wb-window-over-tutorial-help #wbTeamsHelpBtn{
   }
 
   async function portraitsToBake(){
-    /* v559: Images are external assets. Preserve file/URL references and never
-       fetch/convert them back to base64, otherwise the baked HTML grows huge again. */
+    /* v563 LOCAL STANDALONE: preserve the already-compressed embedded portrait data
+       so Bake keeps this file self-contained and local-file safe. */
     const result={};
     try{
       if(typeof BAKED_CHARACTER_PORTRAITS==='object' && BAKED_CHARACTER_PORTRAITS){
         Object.entries(BAKED_CHARACTER_PORTRAITS).forEach(([key,value])=>{
           value=String(value||'').trim();
-          if(key && value && !/^data:image\//i.test(value)) result[key]=value;
+          if(key && value) result[key]=value;
         });
       }
       if(typeof wbCharacterPortraitCache==='object' && wbCharacterPortraitCache){
         Object.entries(wbCharacterPortraitCache).forEach(([key,value])=>{
           value=String(value||'').trim();
-          if(key && value && !/^data:image\//i.test(value)) result[key]=value;
+          if(key && value) result[key]=value;
         });
       }
     }catch(_e){}
@@ -14927,7 +14927,7 @@ body.wb-window-over-tutorial-help #wbTeamsHelpBtn{
     );
     source=source.replace(
       /<div[^>]*id=["']wbBakeRatingsNote["'][^>]*>[\s\S]*?<\/div>/i,
-      '<div class="wb-bake-ratings-note" id="wbBakeRatingsNote">Creates a new HTML with the current WB Tier, character star ratings, Support Tier rankings, portrait file references, PvP META teams, their saved counter teams, and WB teams saved into the app while images stay in the images folder. Other My Teams stay personal. No JSON backup is needed.</div>'
+      '<div class="wb-bake-ratings-note" id="wbBakeRatingsNote">Creates a new HTML with the current WB Tier, character star ratings, Support Tier rankings, embedded portraits, PvP META teams, their saved counter teams, and WB teams saved into the same standalone HTML. Other My Teams stay personal. No JSON backup is needed.</div>'
     );
 
     /* Baking is launched from Settings, so outerHTML can capture that modal open.
@@ -15027,7 +15027,7 @@ body.wb-window-over-tutorial-help #wbTeamsHelpBtn{
     if(btn) btn.disabled=true;
     if(downloadBtn) downloadBtn.style.display='none';
     wbPendingBakedDownload=null;
-    setBakeStatus('Building HTML with WB tiers, stars, role/tag edits, Support Tiers, image references, PvP META teams, counter teams, and WB teams…');
+    setBakeStatus('Building standalone HTML with WB tiers, stars, role/tag edits, Support Tiers, embedded images, PvP META teams, counter teams, and WB teams…');
 
     try{
       const source=await readCurrentHtmlSource();
@@ -15053,7 +15053,7 @@ body.wb-window-over-tutorial-help #wbTeamsHelpBtn{
         downloadBtn.style.display='inline-block';
         downloadBtn.textContent='Download Baked HTML';
       }
-      setBakeStatus(`Ready — baked ${tierCount} WB tiers, ${starCount} star ratings, current role/tag edits, ${supportTierCount} Support Tier rankings, ${portraitCount} external portrait references, ${sharedTeams.meta.length} PvP META teams, ${sharedTeams.counters.length} PvP META counter teams, and ${sharedTeams.wb.length} WB teams. Tap “Download Baked HTML” to save ${filename}.`, 'success');
+      setBakeStatus(`Ready — baked ${tierCount} WB tiers, ${starCount} star ratings, current role/tag edits, ${supportTierCount} Support Tier rankings, ${portraitCount} embedded portraits, ${sharedTeams.meta.length} PvP META teams, ${sharedTeams.counters.length} PvP META counter teams, and ${sharedTeams.wb.length} WB teams. Tap “Download Baked HTML” to save ${filename}.`, 'success');
     }catch(err){
       console.error('Bake ratings into HTML failed:',err);
       setBakeStatus(`Could not bake the ratings: ${err?.message||err}`, 'error');
@@ -18196,10 +18196,10 @@ html[data-wb-build-mode="public"] #teamsSection .team-wb-btn{
 (function(){
   /*
     WhiteBombers build mode.
-    MASTER / OWNER BUILD DEFAULT: 'owner'
-    PUBLIC BUILD: change ONLY the value below to 'public'.
+    PUBLIC GITHUB BUILD: 'public'
+    MASTER / OWNER BUILD remains maintained separately; this release has the flag flipped only.
   */
-  const WB_BUILD_MODE='owner';
+  const WB_BUILD_MODE='public';
   const WB_OWNER_BUILD=WB_BUILD_MODE==='owner';
   window.WB_BUILD_MODE=WB_BUILD_MODE;
   window.WB_OWNER_BUILD=WB_OWNER_BUILD;
@@ -19996,6 +19996,10 @@ body.wb-wbteams-tutorial-locked{position:fixed!important;left:0!important;right:
     const img=document.getElementById('wbSofunArt');
     return img?.currentSrc || img?.src || img?.getAttribute('data-settings-src') || '';
   }
+  const WB_WB_TEAMS_ANGRY_SOFUN='images/tutorial_sofun_angry_over_it.webp';
+  function getWbTeamsAngrySofunSrc(){return WB_WB_TEAMS_ANGRY_SOFUN;}
+  const WB_WB_TEAMS_FRANTIC_SOFUN='images/tutorial_sofun_frantic_approved.webp';
+  function getWbTeamsFranticSofunSrc(){return WB_WB_TEAMS_FRANTIC_SOFUN;}
   function getNofunSrc(){
     try{return JSON.parse(document.getElementById('wbNofunArtData')?.textContent||'{}').src||'';}catch(_e){return '';}
   }
@@ -20011,13 +20015,13 @@ body.wb-wbteams-tutorial-locked{position:fixed!important;left:0!important;right:
     return overlay;
   }
   const steps=[
-    {speaker:'sofun',text:'Welcome to White Bombers personal team section!'},
-    {speaker:'sofun',text:'Here you can see some of his favorite teams.  He even has videos for these teams and so much more over on his YouTube!'},
+    {speaker:'sofun',art:'angry',text:'Welcome to White Bombers personal team section!'},
+    {speaker:'sofun',art:'angry',text:'Here you can see some of his favorite teams.  He even has videos for these teams and so much more over on his YouTube!'},
     {speaker:'nofun',text:'Krikey mate!  They got you peddlin his YouTube!?'},
     {speaker:'nofun',text:'Honestly, that is just completely broken from top to bottom. A complete and utter disgrace.'},
-    {speaker:'sofun',text:'Tell me about it!  I dont even like this game!  I gotta get the *@%& out of here.'},
+    {speaker:'sofun',art:'frantic',text:'Tell me about it!  I dont even like this game!  I gotta get the *@%& out of here.'},
     {speaker:'nofun',text:"Bloody legend! I've got what you need mate!\nYou ever seen a wallaby, drunk on Fosters and dressed up like Queen of England, writing code?  It is pure, unadulterated madness!\nAhahaha!"},
-    {speaker:'sofun',text:"I don't even care.   Here's your stupid link,  good luck!",link:'https://youtube.com/@white_bomber?si=_Y3N2_3uFCqqtoSa'}
+    {speaker:'sofun',art:'frantic',text:"I don't even care.   Here's your stupid link,  good luck!",link:'https://youtube.com/@white_bomber?si=_Y3N2_3uFCqqtoSa'}
   ];
   let index=0;
   function lock(){
@@ -20043,7 +20047,7 @@ body.wb-wbteams-tutorial-locked{position:fixed!important;left:0!important;right:
     const bubble=overlay.querySelector('#wbWbTeamsTutorialBubble');
     const step=steps[index];
     art.classList.toggle('nofun',step.speaker==='nofun');
-    art.src=step.speaker==='nofun'?getNofunSrc():getSofunSrc();
+    art.src=step.speaker==='nofun'?getNofunSrc():(step.art==='angry'?getWbTeamsAngrySofunSrc():(step.art==='frantic'?getWbTeamsFranticSofunSrc():getSofunSrc()));
     art.alt=step.speaker==='nofun'?'Nofun':'Sofun';
     bubble.replaceChildren();
     const text=document.createElement('div');text.textContent=step.text;bubble.appendChild(text);
@@ -20104,19 +20108,7 @@ body.wb-wbteams-tutorial-locked{position:fixed!important;left:0!important;right:
 
 <script id="v558-build-marker">/* v558: WB Teams first-entry tutorial now resets with the existing SOfun Settings reset behavior, alongside the other tutorials. */</script>
 
-<script id="v559-external-image-assets-script">
-(function(){
-  try{
-    if(typeof BAKED_CHARACTER_PORTRAITS==='object' && BAKED_CHARACTER_PORTRAITS && typeof wbCharacterPortraitCache==='object' && wbCharacterPortraitCache){
-      Object.entries(BAKED_CHARACTER_PORTRAITS).forEach(([key,value])=>{
-        const cached=String(wbCharacterPortraitCache[key]||'');
-        if(key && value && /^data:image\//i.test(cached)) wbCharacterPortraitCache[key]=value;
-      });
-      if(typeof wbPersistCharacterPortraitCache==='function') wbPersistCharacterPortraitCache();
-    }
-  }catch(_e){}
-})();
-</script>
+<script id="v559-external-image-assets-script">/* v563 local standalone: external-image cache bridge not needed. */</script>
 <script id="v559-build-marker">/* v559: externalized embedded WebP assets into the images folder; Bake now preserves image references so GitHub-ready HTML stays small. */</script>
 
 <script id="v560-portrait-guard">
@@ -20160,4 +20152,62 @@ body.wb-wbteams-tutorial-locked{position:fixed!important;left:0!important;right:
 </script>
 <script id="v560-build-marker">/* v560: repaired 2-star Captain America local portrait override and replaced dead Fandom Falcon/Red Skull portrait chains with stable sources. */</script>
 <script id="v561-build-marker">/* v561: WB Teams tutorial art and bubbles moved up exactly 2in; Nofun uses its existing transparent artwork with the CSS background/border removed. */</script>
-<script id="v562-build-marker">/* v562: repaired external-image package integrity; removed stale missing Falcon local path. */</script></body></html>
+<script id="v562-build-marker">/* v562: repaired external-image package integrity; removed stale missing Falcon local path. */</script>
+<script id="v563-build-marker">/* v563 LOCAL STANDALONE: compressed local assets re-embedded so rapid iterations work directly from Downloads/file:// without an images folder; Bake preserves embedded images. */</script>
+
+<script id="v564-build-marker">/* v564: WB Teams tutorial steps 1-2 use the newly generated angry/over-it transparent SOfun art; later SOfun steps keep the original tutorial art. */</script>
+
+<script id="v566-build-marker">/* v566: WB Teams tutorial uses the user-approved Sofun image (background removed only) for all Sofun chat bubbles after the first two; first two still use angry Sofun. */</script>
+
+<style id="v567-s-tier-add-to-team-fix">
+/* v567: S-tier sheen and Add-to-Team both used the card ::after layer.
+   When selected for a team, selection feedback takes visual priority; normal S sheen returns when unselected. */
+html body #charactersSection .character-card:has(> .character-card-head.tier-S):has(input[data-add-to-team]:checked){
+  border-color:#63e68e !important;
+  outline:3px solid rgba(99,230,142,.92) !important;
+  outline-offset:1px !important;
+  box-shadow:inset 7px 0 0 #f3c94f,
+             0 0 0 2px rgba(99,230,142,.42),
+             0 0 22px rgba(76,215,124,.34),
+             0 8px 22px rgba(0,0,0,.22) !important;
+}
+html body #charactersSection .character-card:has(> .character-card-head.tier-S):not(.swipe-adding):has(input[data-add-to-team]:checked)::after{
+  content:"ADDING TO TEAM" !important;
+  position:absolute !important;
+  left:50% !important;
+  top:50% !important;
+  right:auto !important;
+  bottom:auto !important;
+  width:max-content !important;
+  max-width:90% !important;
+  height:auto !important;
+  padding:0 !important;
+  display:block !important;
+  transform:translate(-50%,-50%) rotate(-12deg) !important;
+  background:transparent !important;
+  border:0 !important;
+  border-radius:0 !important;
+  box-shadow:none !important;
+  color:#dfffe9 !important;
+  font-size:30px !important;
+  font-weight:1000 !important;
+  line-height:1 !important;
+  letter-spacing:.08em !important;
+  text-align:center !important;
+  text-shadow:0 3px 4px rgba(0,0,0,.72),0 0 10px rgba(91,230,132,.52) !important;
+  opacity:1 !important;
+  animation:none !important;
+  pointer-events:none !important;
+  z-index:120 !important;
+}
+@media(max-width:560px){
+  html body #charactersSection .character-card:has(> .character-card-head.tier-S):not(.swipe-adding):has(input[data-add-to-team]:checked)::after{
+    font-size:26px !important;
+  }
+}
+</style>
+<script id="v567-build-marker">/* v567: fixed WB S-tier Add-to-Team selection feedback being hidden by the S-tier sheen; green outline/text now take priority while selected, sheen/sparkle remain when unselected. */</script>
+
+
+<script id="v568-build-marker">/* v568 PUBLIC GitHub incremental-image build: public mode enabled; 763 existing GitHub assets remain relative references; only the two newly added WB Teams Sofun images ship in this package. */</script>
+</body></html>
