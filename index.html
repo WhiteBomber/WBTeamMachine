@@ -16908,13 +16908,39 @@ body.wb-settings-background-locked{
   let activeCounterPopupCharacter='';
   let lastCounterPopupTeamId=null;
 
-  /* v490: PvP META counter assignments have their own local-only persistence.
-     Baked HTML remains unchanged unless the user explicitly presses Bake Data. */
+  /* v490+: PvP META counter assignments keep their own local persistence.
+     Owner Local can fully edit them. Public merges each user's local additions
+     on top of the published baked defaults so neither side is lost. */
   const COUNTER_ASSIGNMENT_STORAGE_KEY='wbMetaCounterAssignmentsV1';
+  const WB_PUBLIC_MERGE_BAKED_COUNTERS=String(document.documentElement.dataset.wbBuildMode||window.WB_BUILD_MODE||'owner')==='public';
 
   function normalizeCounterIds(value){
     if(!Array.isArray(value)) return [];
     return [...new Set(value.filter(id=>typeof id==='string' && id.trim()).map(id=>id.trim()))];
+  }
+
+  const bakedCounterIdsByMetaId=(()=>{
+    const map=new Map();
+    try{
+      const seedEl=document.getElementById('wbPermanentMetaTeamsSeed');
+      const seed=JSON.parse(seedEl?.textContent||'[]');
+      if(Array.isArray(seed)){
+        seed.forEach(team=>{
+          if(team?.id) map.set(String(team.id),normalizeCounterIds(team.counters));
+        });
+      }
+    }catch(_e){}
+    return map;
+  })();
+
+  function bakedCounterIdsForMeta(teamId){
+    return normalizeCounterIds(bakedCounterIdsByMetaId.get(String(teamId||''))||[]);
+  }
+
+  function effectiveCounterIds(teamId,localIds){
+    const local=normalizeCounterIds(localIds);
+    if(!WB_PUBLIC_MERGE_BAKED_COUNTERS) return local;
+    return normalizeCounterIds([...bakedCounterIdsForMeta(teamId),...local]);
   }
 
   function readCounterAssignmentOverrides(){
@@ -16923,7 +16949,12 @@ body.wb-settings-background-locked{
       if(!parsed || typeof parsed!=='object' || Array.isArray(parsed)) return {};
       const clean={};
       Object.entries(parsed).forEach(([teamId,ids])=>{
-        if(teamId) clean[teamId]=normalizeCounterIds(ids);
+        if(!teamId) return;
+        const normalized=normalizeCounterIds(ids);
+        if(WB_PUBLIC_MERGE_BAKED_COUNTERS){
+          const baked=new Set(bakedCounterIdsForMeta(teamId));
+          clean[teamId]=normalized.filter(id=>!baked.has(id));
+        }else clean[teamId]=normalized;
       });
       return clean;
     }catch(e){
@@ -16960,7 +16991,14 @@ body.wb-settings-background-locked{
       const current=savedTeams.find(t=>t?.id===localTeam.id && t.isMeta && !t.isWb);
       if(!current) return;
       const localIds=normalizeCounterIds(localTeam.counters);
-      if(!sameCounterIds(localIds,current.counters)){
+      if(WB_PUBLIC_MERGE_BAKED_COUNTERS){
+        const baked=new Set(bakedCounterIdsForMeta(localTeam.id));
+        const additions=localIds.filter(id=>!baked.has(id));
+        if(additions.length){
+          counterAssignmentOverrides[localTeam.id]=additions;
+          changed=true;
+        }
+      }else if(!sameCounterIds(localIds,current.counters)){
         counterAssignmentOverrides[localTeam.id]=localIds;
         changed=true;
       }
@@ -16973,8 +17011,10 @@ body.wb-settings-background-locked{
     let changed=false;
     savedTeams.forEach(team=>{
       if(!team?.id || !team.isMeta || team.isWb) return;
-      if(!Object.prototype.hasOwnProperty.call(counterAssignmentOverrides,team.id)) return;
-      const next=normalizeCounterIds(counterAssignmentOverrides[team.id]);
+      const local=Object.prototype.hasOwnProperty.call(counterAssignmentOverrides,team.id)
+        ? counterAssignmentOverrides[team.id]
+        : [];
+      const next=effectiveCounterIds(team.id,local);
       if(!sameCounterIds(team.counters,next)){
         team.counters=next.slice();
         changed=true;
@@ -16985,7 +17025,13 @@ body.wb-settings-background-locked{
 
   function persistCounterAssignment(team){
     if(!team?.id) return;
-    counterAssignmentOverrides[team.id]=normalizeCounterIds(team.counters);
+    const current=normalizeCounterIds(team.counters);
+    if(WB_PUBLIC_MERGE_BAKED_COUNTERS){
+      const baked=new Set(bakedCounterIdsForMeta(team.id));
+      const additions=current.filter(id=>!baked.has(id));
+      if(additions.length) counterAssignmentOverrides[team.id]=additions;
+      else delete counterAssignmentOverrides[team.id];
+    }else counterAssignmentOverrides[team.id]=current;
     writeCounterAssignmentOverrides();
   }
 
@@ -17087,10 +17133,13 @@ body.wb-settings-background-locked{
     const team=savedTeams[activeCounterPopupIndex];
     if(!team){ closeCounterPopup(); return; }
 
-    /* Re-apply the local override whenever the popup opens/renders.  This keeps
-       baked defaults from replacing a user's local counter choices. */
-    if(team.id && Object.prototype.hasOwnProperty.call(counterAssignmentOverrides,team.id)){
-      team.counters=normalizeCounterIds(counterAssignmentOverrides[team.id]);
+    /* Public: published baked counters + this browser's local additions.
+       Owner Local keeps the existing editable override behavior. */
+    if(team.id){
+      const local=Object.prototype.hasOwnProperty.call(counterAssignmentOverrides,team.id)
+        ? counterAssignmentOverrides[team.id]
+        : (WB_PUBLIC_MERGE_BAKED_COUNTERS?[]:team.counters);
+      team.counters=effectiveCounterIds(team.id,local);
     }
 
     if(lastCounterPopupTeamId!==team.id){
@@ -17126,7 +17175,9 @@ body.wb-settings-background-locked{
         ? counterTeams.map(ct=>`
           <div class="counter-popup-item"><div class="counter-popup-team-block"><div class="counter-popup-team-name">${escapeHtml(ct.name||'Unnamed Team')}</div>
           ${compactCounterTeamHtml(ct)}
-          </div><button type="button" class="counter-remove" data-popup-remove-counter="${escapeHtml(ct.id)}">Remove</button></div>`).join('')
+          </div>${WB_PUBLIC_MERGE_BAKED_COUNTERS && bakedCounterIdsForMeta(team.id).includes(ct.id)
+            ? `<button type="button" class="counter-remove counter-baked-lock" data-popup-remove-counter="${escapeHtml(ct.id)}" disabled aria-disabled="true" title="Published baked counter">Baked</button>`
+            : `<button type="button" class="counter-remove" data-popup-remove-counter="${escapeHtml(ct.id)}">Remove</button>`}</div>`).join('')
         : `<div class="counter-popup-empty">${escapeHtml(emptyMessage)}</div>`}
       </div>`;
 
@@ -17146,7 +17197,9 @@ body.wb-settings-background-locked{
     content.querySelectorAll('[data-popup-remove-counter]').forEach(btn=>btn.onclick=()=>{
       const target=savedTeams[activeCounterPopupIndex];
       if(!target) return;
-      target.counters=normalizeCounterIds(target.counters).filter(id=>id!==btn.dataset.popupRemoveCounter);
+      const removeId=btn.dataset.popupRemoveCounter;
+      if(WB_PUBLIC_MERGE_BAKED_COUNTERS && bakedCounterIdsForMeta(target.id).includes(removeId)) return;
+      target.counters=normalizeCounterIds(target.counters).filter(id=>id!==removeId);
       persistCounterAssignment(target);
       saveTeamsState();
       renderSavedTeams();
@@ -17155,7 +17208,14 @@ body.wb-settings-background-locked{
   };
 })();
 </script>
-
+<style id="v593-public-baked-counter-lock-style">
+html[data-wb-build-mode="public"] #counterPopupOverlay .counter-baked-lock{
+  opacity:.72 !important;
+  cursor:default !important;
+  color:#d8c68d !important;
+  border-color:#695f3b !important;
+}
+</style>
 
 <style id="v489-counter-support-position-final">
 #counterPopupOverlay .counter-team-member-colors{display:none !important;}
