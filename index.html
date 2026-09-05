@@ -5834,10 +5834,12 @@ if(!overlay){
 }
 if(!overlay.querySelector('#teamNamePromptMode')){
   overlay.innerHTML=`<div class="wb-modal-card team-name-card" role="dialog" aria-modal="true" aria-labelledby="teamNamePromptTitle"><button type="button" class="wb-modal-x" data-close-team-name aria-label="Close">×</button><div id="teamNamePromptTitle" class="team-name-title">Name Your Team</div><input id="teamNamePromptInput" class="team-name-input" type="text" maxlength="60" autocomplete="off" /><label class="team-name-mode-field"><span>Mode</span><select id="teamNamePromptMode" class="team-name-mode-select">${TEAM_MODE_OPTIONS.map(mode=>`<option value="${escapeHtml(mode)}">${teamModeIcon(mode)} ${escapeHtml(mode)}</option>`).join('')}</select></label><div class="team-name-actions"><button type="button" class="team-name-cancel" data-close-team-name>Cancel</button><button type="button" class="team-name-create" data-create-team>Create Team</button></div></div>`;
-  delete overlay.dataset.teamNameBound;
+  overlay.__wbTeamNameBound=false;
+  overlay.removeAttribute('data-team-name-bound');
 }
-if(overlay.dataset.teamNameBound!=='1'){
-  overlay.dataset.teamNameBound='1';
+if(overlay.__wbTeamNameBound!==true){
+  overlay.__wbTeamNameBound=true;
+  overlay.removeAttribute('data-team-name-bound');
   const close=()=>{
     overlay.classList.remove('open');
     overlay.setAttribute('aria-hidden','true');
@@ -15204,6 +15206,9 @@ body.wb-window-over-tutorial-help #wbTeamsHelpBtn{
       '<div class="wb-bake-ratings-note" id="wbBakeRatingsNote">Creates a new HTML with the current WB Tier, character star ratings, Support Tier rankings, Complexity choices, embedded portraits, PvP META teams, their saved counter teams, and WB teams saved into the same standalone HTML. Other My Teams stay personal. No JSON backup is needed.</div>'
     );
 
+    /* v596: runtime-only listener markers must never travel in a baked file. */
+    source=source.replace(/\sdata-team-name-bound=(["'])1\1/gi,'');
+
     /* Baking is launched from Settings, so outerHTML can capture that modal open.
        Always make portable baked files start on the app itself instead. */
     source=source.replace(
@@ -15375,7 +15380,7 @@ body.wb-window-over-tutorial-help #wbTeamsHelpBtn{
 <style id="v468-hide-card-role-chips">
 #charactersSection .character-card .wb-card-primary-roles{display:none !important;}
 </style>
-<div id="teamNamePromptOverlay" class="wb-modal-overlay team-name-overlay" aria-hidden="true" data-team-name-bound="1"><div class="wb-modal-card team-name-card" role="dialog" aria-modal="true" aria-labelledby="teamNamePromptTitle"><button type="button" class="wb-modal-x" data-close-team-name="" aria-label="Close">×</button><div id="teamNamePromptTitle" class="team-name-title">Name Your Team</div><input id="teamNamePromptInput" class="team-name-input" type="text" maxlength="60" autocomplete="off"><label class="team-name-mode-field"><span>Mode</span><select id="teamNamePromptMode" class="team-name-mode-select"><option value="PvP Offense">⚔️ PvP Offense</option><option value="PvP Defense">🛡️ PvP Defense</option><option value="PvE">💤 PvE</option><option value="Puzzle">🧩 Puzzle</option><option value="none"> none</option></select></label><div class="team-name-actions"><button type="button" class="team-name-cancel" data-close-team-name="">Cancel</button><button type="button" class="team-name-create" data-create-team="">Create Team</button></div></div></div>
+<div id="teamNamePromptOverlay" class="wb-modal-overlay team-name-overlay" aria-hidden="true"><div class="wb-modal-card team-name-card" role="dialog" aria-modal="true" aria-labelledby="teamNamePromptTitle"><button type="button" class="wb-modal-x" data-close-team-name="" aria-label="Close">×</button><div id="teamNamePromptTitle" class="team-name-title">Name Your Team</div><input id="teamNamePromptInput" class="team-name-input" type="text" maxlength="60" autocomplete="off"><label class="team-name-mode-field"><span>Mode</span><select id="teamNamePromptMode" class="team-name-mode-select"><option value="PvP Offense">⚔️ PvP Offense</option><option value="PvP Defense">🛡️ PvP Defense</option><option value="PvE">💤 PvE</option><option value="Puzzle">🧩 Puzzle</option><option value="none"> none</option></select></label><div class="team-name-actions"><button type="button" class="team-name-cancel" data-close-team-name="">Cancel</button><button type="button" class="team-name-create" data-create-team="">Create Team</button></div></div></div>
 <script id="v471-roster-startup-and-first-sofun-guarantee">
 (function(){
   const WELCOME_KEY='wbSofunWelcomeSeenV2';
@@ -18739,7 +18744,8 @@ html[data-wb-build-mode="public"] #teamsSection .team-wb-btn{
       row=document.createElement('div');
       row.id=rowId;
       row.className='wb-top-filter-heading-row';
-      section.insertBefore(row,label);
+      const parent=label.parentElement||section;
+      parent.insertBefore(row,label);
     }
     if(label.parentElement!==row) row.appendChild(label);
     if(fav.parentElement!==row) row.appendChild(fav);
@@ -21698,4 +21704,6 @@ html body #charactersSection #characterTierSourceSelect option[value="community"
 })();
 </script>
 <script id="v594-build-marker">/* v594: First Teams visit always starts on My Teams; after that, each browser remembers the last Teams subtab used. Bake normalization also resets exported HTML to My Teams. */</script>
+
+<script id="v596-build-marker">/* v596: fixed baked Name Your Team modal binding by using a runtime-only DOM property; Create Team handlers now attach correctly after reload, and Bake strips the stale binding attribute. */</script>
 </body></html>
