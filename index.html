@@ -3978,37 +3978,43 @@ function wbMarkRenderedCharacterOwned(key){
 let wbPendingOwnedKey='';
 function ensureOwnedFirstPrompt(){
   let overlay=document.getElementById('wbOwnedFirstPrompt');
-  if(overlay) return overlay;
-  overlay=document.createElement('div');
-  overlay.id='wbOwnedFirstPrompt';
-  overlay.className='wb-owned-prompt-overlay';
-  overlay.setAttribute('aria-hidden','true');
-  overlay.innerHTML=`<div class="wb-owned-prompt-card" role="dialog" aria-modal="true" aria-labelledby="wbOwnedPromptQuestion"><div class="wb-owned-prompt-icon">✓</div><div class="wb-owned-prompt-question" id="wbOwnedPromptQuestion">Do you own all characters?</div><div class="wb-owned-prompt-sub">Yes marks the full roster Owned. No marks only the character you just selected.</div><div class="wb-owned-prompt-actions"><button type="button" data-owned-answer="yes">Yes</button><button type="button" data-owned-answer="no">No</button></div></div>`;
-  document.body.appendChild(overlay);
-  overlay.querySelector('[data-owned-answer="yes"]')?.addEventListener('click',()=>{
-    ownedCharactersInitialized=true;
-    ownedAllCharacters=true;
-    ownedCharacters.clear();
-    persistOwnedCharacters();
-    wbPendingOwnedKey='';
-    overlay.classList.remove('open');
+  if(!overlay){
+    overlay=document.createElement('div');
+    overlay.id='wbOwnedFirstPrompt';
+    overlay.className='wb-owned-prompt-overlay';
     overlay.setAttribute('aria-hidden','true');
-    state.ownedOnly=false;
-    wbUpdateOwnedFilterButtonState();
-    wbRefreshRenderedOwnedVisuals();
-  });
-  overlay.querySelector('[data-owned-answer="no"]')?.addEventListener('click',()=>{
-    ownedCharactersInitialized=true;
-    ownedAllCharacters=false;
-    if(wbPendingOwnedKey) ownedCharacters.add(wbPendingOwnedKey);
-    persistOwnedCharacters();
-    const justOwned=wbPendingOwnedKey;
-    wbPendingOwnedKey='';
-    overlay.classList.remove('open');
-    overlay.setAttribute('aria-hidden','true');
-    wbRefreshRenderedOwnedVisuals();
-    if(justOwned) wbMarkRenderedCharacterOwned(justOwned);
-  });
+    overlay.innerHTML=`<div class="wb-owned-prompt-card" role="dialog" aria-modal="true" aria-labelledby="wbOwnedPromptQuestion"><div class="wb-owned-prompt-icon">✓</div><div class="wb-owned-prompt-question" id="wbOwnedPromptQuestion">Do you own all characters?</div><div class="wb-owned-prompt-sub">Yes marks the full roster Owned. No marks only the character you just selected.</div><div class="wb-owned-prompt-actions"><button type="button" data-owned-answer="yes">Yes</button><button type="button" data-owned-answer="no">No</button></div></div>`;
+    document.body.appendChild(overlay);
+  }
+
+  /* The overlay may already be baked into the HTML. Bind its controls either way. */
+  if(overlay.dataset.wbOwnedPromptBound!=='1'){
+    overlay.dataset.wbOwnedPromptBound='1';
+    overlay.querySelector('[data-owned-answer="yes"]')?.addEventListener('click',()=>{
+      ownedCharactersInitialized=true;
+      ownedAllCharacters=true;
+      ownedCharacters.clear();
+      persistOwnedCharacters();
+      wbPendingOwnedKey='';
+      overlay.classList.remove('open');
+      overlay.setAttribute('aria-hidden','true');
+      state.ownedOnly=false;
+      wbUpdateOwnedFilterButtonState();
+      wbRefreshRenderedOwnedVisuals();
+    });
+    overlay.querySelector('[data-owned-answer="no"]')?.addEventListener('click',()=>{
+      ownedCharactersInitialized=true;
+      ownedAllCharacters=false;
+      if(wbPendingOwnedKey) ownedCharacters.add(wbPendingOwnedKey);
+      persistOwnedCharacters();
+      const justOwned=wbPendingOwnedKey;
+      wbPendingOwnedKey='';
+      overlay.classList.remove('open');
+      overlay.setAttribute('aria-hidden','true');
+      wbRefreshRenderedOwnedVisuals();
+      if(justOwned) wbMarkRenderedCharacterOwned(justOwned);
+    });
+  }
   return overlay;
 }
 function markCharacterOwned(key){
