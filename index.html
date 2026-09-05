@@ -3351,7 +3351,7 @@ html[data-wb-build-mode="public"] #wbOwnedResetSettingsRow{display:none!importan
 </div>
 <div class="filter-subgroup tier-filter-group">
 
-<select id="characterTierSourceSelect" class="character-tier-source-select" aria-label="Choose tier ratings to filter"><option value="wb">WB Tiers</option><option value="mine">My Tiers</option></select><div class="tier-filter" id="tierFilters"><button class="chip">S</button><button class="chip">A</button><button class="chip">B</button><button class="chip">C</button></div>
+<select id="characterTierSourceSelect" class="character-tier-source-select" aria-label="Choose tier ratings to filter"><option value="wb">WB Tiers</option><option value="mine">My Tiers</option><option value="community" disabled>Community</option></select><div class="tier-filter" id="tierFilters"><button class="chip">S</button><button class="chip">A</button><button class="chip">B</button><button class="chip">C</button></div>
 <button class="tier-key-btn wb-key-icon-btn" id="tierKeyBtn" type="button" aria-label="Open tier key" title="Tier Key"><svg class="wb-antique-key-icon" viewBox="0 0 32 32" aria-hidden="true"><circle cx="10" cy="10" r="6.4"></circle><circle cx="10" cy="10" r="2.25"></circle><path d="M14.55 14.55 29 29M20.25 20.25l-2.35 2.35M23.25 23.25l3.05-3.05M26.15 26.15l3.1-3.1"></path><path d="M5.75 5.75c1.18-1.52 2.6-2.28 4.25-2.28s3.07.76 4.25 2.28"></path></svg></button><button class="star-filter-btn wb-tier-inline-quick" id="not550CharacterFilterBtn" type="button">Not 550</button>
 </div>
 </div>
@@ -3978,7 +3978,7 @@ const q = norm(state.query);
 const direct = !q || [c.name,c.subtitle,...c.affiliations].some(x=>norm(x).includes(q));
 const abilities = c.abilities.filter(abilityMatches);
 const colorTagActive = state.colors.size || state.tags.size;
-const tierValueForFilter = state.tierSource==='mine' ? (tierRatings[characterKey(c)] || tierRatings[c.name] || '') : htmlTierForCharacter(c);
+const tierValueForFilter = state.tierSource==='mine' ? (tierRatings[characterKey(c)] || tierRatings[c.name] || '') : (state.tierSource==='community' ? ((window.wbCommunityTierRatings?.[characterKey(c)]||window.wbCommunityTierRatings?.[c.name]||{}).tier||'') : htmlTierForCharacter(c));
 const tierOk = !state.tiers.size || state.tiers.has(tierValueForFilter);
 return tierOk && ((direct && !colorTagActive) || abilities.length>0 || (!q && !colorTagActive));
 }
@@ -19590,7 +19590,7 @@ html body #teamsSection #teamFilterSection .team-filter-controls > #teamClearFil
     select.__wbTierSourceBound=true;
     select.value=state.tierSource||'wb';
     select.addEventListener('change',()=>{
-      state.tierSource=select.value==='mine'?'mine':'wb';
+      state.tierSource=(select.value==='mine'||select.value==='community')?select.value:'wb';
       wbInvalidateRosterMatchCache();
       wbResetRosterBatch();
       renderList();
@@ -20795,7 +20795,7 @@ html[data-wb-build-mode="public"] .wb-community-tier-row.wb-community-tier-confi
     GitHub Pages is read-only, so a Public build needs a writable web endpoint.
     Paste the deployed collector URL between the quotes below before publishing the Public build.
   */
-  const WB_COMMUNITY_TIER_ENDPOINT='https://script.google.com/macros/s/AKfycbxMLYCtnyAsAY20Nte-bb4-NfhiCIu_ZY3TCIekNubDYD1qEhGH8LrmmjjfNP4O4KM/exec';
+  const WB_COMMUNITY_TIER_ENDPOINT='https://script.google.com/macros/s/AKfycbyMjATz6CPAPjf6bn9ljnU7IElIhAuNM8ki5qYssG--Cn9fWcSJisSEDtOEh06InGC8/exec';
   const SHARE_KEY='wbCommunityTierSharingV1';
   const PARTICIPANT_KEY='wbCommunityTierParticipantIdV1';
   const PENDING_KEY='wbCommunityTierPendingV1';
@@ -20839,7 +20839,7 @@ html[data-wb-build-mode="public"] .wb-community-tier-row.wb-community-tier-confi
     return {
       format:'WhiteBombers Community Tier Snapshot',
       schemaVersion:1,
-      appVersion:'v580',
+      appVersion:'v581',
       participantId:participantId(),
       updatedAt:new Date().toISOString(),
       tiers:currentTiers()
@@ -20883,7 +20883,7 @@ html[data-wb-build-mode="public"] .wb-community-tier-row.wb-community-tier-confi
     const owned=document.getElementById('wbOwnedResetSettingsRow');
     const row=document.createElement('div');
     row.className='wb-settings-row wb-community-tier-row'+(isConfigured()?' wb-community-tier-configured':'');
-    row.innerHTML='<div><div class="wb-settings-row-title">Community Tier Ranking</div><div class="wb-settings-row-sub">Anonymous community tier sharing is enabled by default in the Public build. Only your My Tier S/A/B/C choices are sent. No name, email, teams, Owned roster, or other app data is sent. You can turn sharing off at any time.</div><div class="wb-community-tier-status" id="wbCommunityTierStatus"></div></div><label class="wb-community-tier-control"><input id="wbCommunityTierShare" type="checkbox"><span>Share My Tiers</span></label>';
+    row.innerHTML='<div><div class="wb-settings-row-title">Community Tier Ranking</div><div class="wb-settings-row-sub">Anonymous community tier sharing is enabled by default in the Public build. Only your My Tier S/A/B/C choices are sent. No name, email, teams, Owned roster, or other app data is sent. You can turn sharing off at any time. Community rankings are pulled back into the app as aggregate-only data; individual participant IDs are never displayed.</div><div class="wb-community-tier-status" id="wbCommunityTierStatus"></div></div><label class="wb-community-tier-control"><input id="wbCommunityTierShare" type="checkbox"><span>Share My Tiers</span></label>';
     if(owned?.parentNode) owned.parentNode.insertBefore(row,owned.nextSibling); else panel.appendChild(row);
     const input=row.querySelector('#wbCommunityTierShare');
     input.checked=isSharing();
@@ -21014,4 +21014,105 @@ html body #charactersSection .character-card .wb-s-tier-bar-glow{
 <script id="v579-build-marker">/* v579 Public GitHub: based on v578; community-tier collector configured to the deployed Google Apps Script endpoint; all existing GitHub image paths preserved and no new image assets required. */</script>
 
 <script id="v580-build-marker">/* v580: Public Community Tier Sharing defaults ON for new users; an explicit user opt-out is stored and persists across future loads/updates. */</script>
+
+<style id="v581-community-tier-display-style">
+html body #charactersSection .character-card .wb-community-tier-card-line{margin-top:2px!important;}
+html body #charactersSection .character-card .wb-community-tier-card-line .wb-community-votes{
+  margin-left:2px;color:#9eb6cb;font-size:8px;font-weight:800;white-space:nowrap;
+}
+html body #charactersSection #characterTierSourceSelect option[value="community"]{font-weight:900;}
+</style>
+<script id="v581-community-tier-display-script">
+(function(){
+  const endpoint=String(window.WB_COMMUNITY_TIER_ENDPOINT||'');
+  const REFRESH_MS=5*60*1000;
+  let refreshTimer=0;
+  window.wbCommunityTierRatings=window.wbCommunityTierRatings||{};
+  window.wbCommunityTierMeta=window.wbCommunityTierMeta||null;
+
+  function isConfigured(){return /^https?:\/\//i.test(endpoint);}
+  function setStatus(msg){
+    const el=document.getElementById('wbCommunityTierStatus');
+    if(el && msg) el.textContent=msg;
+  }
+  function communityOption(){
+    return document.querySelector('#characterTierSourceSelect option[value="community"]');
+  }
+  function refreshRoster(){
+    try{wbInvalidateRosterMatchCache();}catch(_e){}
+    try{wbResetRosterBatch();}catch(_e){}
+    try{renderView();}catch(_e){}
+    try{renderFilters();}catch(_e){}
+  }
+  function acceptAggregate(data){
+    if(!data || data.ok!==true || !data.characters || typeof data.characters!=='object') throw new Error('Invalid community data');
+    window.wbCommunityTierRatings=data.characters;
+    window.wbCommunityTierMeta={
+      participantCount:Number(data.participantCount)||0,
+      ratingCount:Number(data.ratingCount)||0,
+      generatedAt:String(data.generatedAt||'')
+    };
+    const opt=communityOption();
+    if(opt){
+      opt.disabled=false;
+      opt.textContent='Community';
+      opt.title=`${window.wbCommunityTierMeta.participantCount} community participant${window.wbCommunityTierMeta.participantCount===1?'':'s'}`;
+    }
+    setStatus(`Community ranking loaded: ${window.wbCommunityTierMeta.participantCount} participant${window.wbCommunityTierMeta.participantCount===1?'':'s'}. Average uses S=4, A=3, B=2, C=1.`);
+    refreshRoster();
+  }
+  function loadAggregate(){
+    if(!isConfigured()) return;
+    const cb='__wbCommunityTierJsonp_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8);
+    const script=document.createElement('script');
+    const cleanup=()=>{try{delete window[cb];}catch(_e){window[cb]=undefined;} try{script.remove();}catch(_e){}};
+    let done=false;
+    const timeout=setTimeout(()=>{
+      if(done) return; done=true; cleanup();
+      setStatus('Community ranking could not be loaded. Sharing can still continue.');
+    },12000);
+    window[cb]=function(data){
+      if(done) return; done=true; clearTimeout(timeout);
+      try{acceptAggregate(data);}catch(_e){setStatus('Community ranking response was invalid.');}
+      cleanup();
+    };
+    script.async=true;
+    script.onerror=function(){
+      if(done) return; done=true; clearTimeout(timeout); cleanup();
+      setStatus('Community ranking could not be loaded. Sharing can still continue.');
+    };
+    const joiner=endpoint.includes('?')?'&':'?';
+    script.src=endpoint+joiner+'mode=aggregate&callback='+encodeURIComponent(cb)+'&_='+Date.now();
+    document.head.appendChild(script);
+  }
+
+  /* Add a Community Tier line beneath WB Tier on character cards whenever votes exist. */
+  try{
+    const originalTierHtml=tierHtml;
+    tierHtml=function(key,legacyName){
+      const html=originalTierHtml(key,legacyName);
+      const entry=window.wbCommunityTierRatings?.[key]||window.wbCommunityTierRatings?.[legacyName];
+      if(!entry || !['S','A','B','C'].includes(String(entry.tier||'').toUpperCase())) return html;
+      const tier=String(entry.tier).toUpperCase();
+      const total=Math.max(0,Number(entry.total)||0);
+      const line=`<div class="wb-html-tier-line wb-community-tier-card-line"><span>Community</span><strong class="tier-${tier}">${tier}</strong><small class="wb-community-votes">n=${total}</small></div>`;
+      const i=html.lastIndexOf('</div>');
+      return i>=0 ? html.slice(0,i)+line+html.slice(i) : html+line;
+    };
+  }catch(_e){}
+
+  function init(){
+    const opt=communityOption();
+    if(opt){opt.disabled=true;opt.textContent='Community…';}
+    loadAggregate();
+    clearInterval(refreshTimer);
+    refreshTimer=setInterval(loadAggregate,REFRESH_MS);
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init,{once:true}); else init();
+})();
+</script>
+<script id="v581-build-marker">/* v581 Public GitHub: Community tier aggregates are read back into the app via JSONP, shown on character cards, and available as a third WB/My/Community tier filter source. */</script>
+
+
+<script id="v582-build-marker">/* v582: updated Community Tier collector endpoint to the newly deployed Google Apps Script web app URL. */</script>
 </body></html>
