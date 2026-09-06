@@ -15579,7 +15579,12 @@ body.wb-window-over-tutorial-help #wbTeamsHelpBtn{
 (function(){
   function boot(){
     const input=document.getElementById('characterFilterSearch');
-    if(!input || input.dataset.v473Suggestions==='1') return;
+    // v600: Serialized HTML can preserve data-v473-suggestions="1" even though
+    // event listeners are never serialized. Use a runtime-only DOM property so
+    // the handlers are always rebound after a fresh load, but never twice in
+    // the same live page.
+    if(!input || input.__wbCharacterSuggestionsBound) return;
+    input.__wbCharacterSuggestionsBound=true;
     input.dataset.v473Suggestions='1';
     const wrap=input.closest('.character-direct-filters') || input.parentElement;
     let list=document.getElementById('wbCharacterSuggestions');
@@ -21961,4 +21966,6 @@ body.wb-light-mode #supportsSection .wb-support-suggestions{
 </script>
 <script id="v599-build-marker">/* v599: Support Search now has instant type-ahead name/subtitle suggestions matching the Roster search, including keyboard selection and scroll-to-support behavior. */</script>
 
+
+<script id="v600-build-marker">/* v600: Character type-ahead suggestions reliably rebind after loading a baked/saved HTML app by using a runtime-only binding flag instead of the serialized data-v473-suggestions marker. */</script>
 </body></html>
