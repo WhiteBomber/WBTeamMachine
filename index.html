@@ -21968,4 +21968,259 @@ body.wb-light-mode #supportsSection .wb-support-suggestions{
 
 
 <script id="v600-build-marker">/* v600: Character type-ahead suggestions reliably rebind after loading a baked/saved HTML app by using a runtime-only binding flag instead of the serialized data-v473-suggestions marker. */</script>
+
+
+<style id="v601-character-search-stable-suggestions-style">
+/* v601: use a body-level suggestion portal so the Roster type-ahead cannot be
+   clipped or buried by the moving/expanding filter layout. */
+#wbCharacterSuggestions{display:none !important;}
+#wbCharacterSuggestionsPortal{
+  position:fixed !important;
+  left:0;
+  top:0;
+  right:auto !important;
+  width:240px;
+  z-index:40050 !important;
+  display:none;
+  max-height:245px;
+  overflow:auto;
+  padding:5px;
+  border:1px solid rgba(150,175,215,.52);
+  border-radius:10px;
+  background:rgba(9,16,28,.985);
+  box-shadow:0 12px 30px rgba(0,0,0,.52),inset 0 1px 0 rgba(255,255,255,.04);
+  backdrop-filter:blur(10px);
+}
+#wbCharacterSuggestionsPortal.show{display:block !important;}
+body.wb-light-mode #wbCharacterSuggestionsPortal{
+  background:rgba(250,252,255,.99);
+  border-color:#bdcedd;
+  box-shadow:0 12px 28px rgba(40,60,80,.22);
+}
+</style>
+<script id="v601-character-search-stable-suggestions-script">
+(function(){
+  let portal=null;
+  let items=[];
+  let activeIndex=-1;
+  let currentInput=null;
+
+  const clean=v=>String(v||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+  const esc=v=>String(v||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+  function getInput(){ return document.getElementById('characterFilterSearch'); }
+
+  function ensurePortal(){
+    portal=document.getElementById('wbCharacterSuggestionsPortal');
+    if(!portal){
+      portal=document.createElement('div');
+      portal.id='wbCharacterSuggestionsPortal';
+      portal.className='wb-character-suggestions';
+      portal.setAttribute('role','listbox');
+      portal.setAttribute('aria-label','Character suggestions');
+      document.body.appendChild(portal);
+    }else if(portal.parentElement!==document.body){
+      document.body.appendChild(portal);
+    }
+    return portal;
+  }
+
+  function syncElsReference(input){
+    try{
+      if(typeof els!=='undefined' && els && els.characterFilterSearch!==input){
+        els.characterFilterSearch=input;
+      }
+    }catch(_e){}
+  }
+
+  /* Keep the live input intact so no unrelated Roster listeners are disturbed.
+     v601 itself is document-delegated, so it survives any later move/rebuild of
+     the field and does not depend on serialized per-element listener markers. */
+  function getStableSearchInput(){
+    const input=getInput();
+    if(!input) return null;
+    input.dataset.v601StableSearch='1';
+    syncElsReference(input);
+    return input;
+  }
+
+  function hide(){
+    ensurePortal();
+    portal.classList.remove('show');
+    portal.innerHTML='';
+    items=[];
+    activeIndex=-1;
+  }
+
+  function positionPortal(){
+    const input=currentInput && currentInput.isConnected ? currentInput : getInput();
+    if(!input || !portal) return;
+    const r=input.getBoundingClientRect();
+    const vv=window.visualViewport;
+    const viewportTop=vv ? vv.offsetTop : 0;
+    const viewportHeight=vv ? vv.height : window.innerHeight;
+    const viewportBottom=viewportTop+viewportHeight;
+    const below=Math.max(0,viewportBottom-r.bottom-8);
+    const above=Math.max(0,r.top-viewportTop-8);
+    const useAbove=below<120 && above>below;
+    const maxH=Math.max(80,Math.min(245,useAbove?above:below));
+    const width=Math.max(150,Math.min(r.width,window.innerWidth-12));
+    let left=Math.max(6,Math.min(r.left,window.innerWidth-width-6));
+    portal.style.width=width+'px';
+    portal.style.left=left+'px';
+    portal.style.maxHeight=maxH+'px';
+    if(useAbove){
+      portal.style.top=Math.max(viewportTop+4,r.top-maxH-4)+'px';
+    }else{
+      portal.style.top=(r.bottom+4)+'px';
+    }
+  }
+
+  function rankedCharacters(query){
+    const chars=(typeof DATA!=='undefined' && Array.isArray(DATA)) ? DATA : [];
+    return chars.map(c=>{
+      const name=clean(c?.name), sub=clean(c?.subtitle);
+      let score=99;
+      if(name===query) score=0;
+      else if(name.startsWith(query)) score=1;
+      else if(sub.startsWith(query)) score=2;
+      else if(name.includes(query)) score=3;
+      else if(sub.includes(query)) score=4;
+      return {c,score};
+    }).filter(x=>x.score<99)
+      .sort((a,b)=>a.score-b.score || String(a.c?.name||'').localeCompare(String(b.c?.name||'')))
+      .slice(0,7)
+      .map(x=>x.c);
+  }
+
+  function renderSuggestions(input){
+    currentInput=input;
+    ensurePortal();
+    const q=clean(input?.value);
+    if(!q){ hide(); return; }
+    items=rankedCharacters(q);
+    activeIndex=-1;
+    if(!items.length){ hide(); return; }
+    portal.innerHTML=items.map((c,i)=>`<button type="button" class="wb-character-suggestion" role="option" data-v601-suggestion-index="${i}"><span class="wb-character-suggestion-name">${esc(c?.name)}</span>${c?.subtitle?`<span class="wb-character-suggestion-sub">${esc(c.subtitle)}</span>`:''}</button>`).join('');
+    positionPortal();
+    portal.classList.add('show');
+  }
+
+  function paint(){
+    if(!portal) return;
+    portal.querySelectorAll('[data-v601-suggestion-index]').forEach((b,i)=>b.classList.toggle('active',i===activeIndex));
+  }
+
+  function applyRosterQuery(input){
+    try{
+      if(typeof state!=='undefined') state.characterQuery=input.value;
+      if(typeof render==='function') render();
+    }catch(err){ console.error('Roster search update failed',err); }
+  }
+
+  function selectCharacter(c){
+    const input=getInput();
+    if(!input || !c) return;
+    input.value=String(c.name||'');
+    applyRosterQuery(input);
+    hide();
+    input.blur();
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{
+      let key='';
+      try{ key=typeof characterKey==='function' ? characterKey(c) : `${c?.name||''}||${c?.subtitle||''}`; }catch(_e){}
+      const card=[...document.querySelectorAll('#charactersSection [data-character]')]
+        .find(node=>node.dataset.character===key);
+      card?.scrollIntoView({behavior:'smooth',block:'center',inline:'nearest'});
+    }));
+  }
+
+  function boot(){
+    currentInput=getStableSearchInput();
+    ensurePortal();
+    hide();
+  }
+
+  /* Delegation is intentional: even if another feature later moves or rebuilds
+     the input, type-ahead and filtering remain attached to the document. */
+  document.addEventListener('input',e=>{
+    const input=e.target?.id==='characterFilterSearch' ? e.target : null;
+    if(!input) return;
+    syncElsReference(input);
+    applyRosterQuery(input);
+    renderSuggestions(input);
+  },true);
+
+  document.addEventListener('search',e=>{
+    const input=e.target?.id==='characterFilterSearch' ? e.target : null;
+    if(!input) return;
+    syncElsReference(input);
+    applyRosterQuery(input);
+    renderSuggestions(input);
+  },true);
+
+  document.addEventListener('focusin',e=>{
+    if(e.target?.id!=='characterFilterSearch') return;
+    currentInput=e.target;
+    syncElsReference(e.target);
+    if(e.target.value.trim()) renderSuggestions(e.target);
+  },true);
+
+  document.addEventListener('keydown',e=>{
+    if(e.target?.id!=='characterFilterSearch') return;
+    ensurePortal();
+    if(!portal.classList.contains('show') || !items.length) return;
+    if(e.key==='ArrowDown'){
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      activeIndex=(activeIndex+1)%items.length;
+      paint();
+    }else if(e.key==='ArrowUp'){
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      activeIndex=(activeIndex-1+items.length)%items.length;
+      paint();
+    }else if(e.key==='Enter'){
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      selectCharacter(items[activeIndex>=0?activeIndex:0]);
+    }else if(e.key==='Escape'){
+      e.stopImmediatePropagation();
+      hide();
+    }
+  },true);
+
+  document.addEventListener('click',e=>{
+    const btn=e.target?.closest?.('[data-v601-suggestion-index]');
+    if(!btn || !portal?.contains(btn)) return;
+    const c=items[Number(btn.dataset.v601SuggestionIndex)];
+    if(c) selectCharacter(c);
+  });
+
+  document.addEventListener('pointerdown',e=>{
+    const input=getInput();
+    if(e.target===input || input?.contains?.(e.target) || portal?.contains(e.target)) return;
+    hide();
+  },true);
+
+  const reposition=()=>{ if(portal?.classList.contains('show')) positionPortal(); };
+  window.addEventListener('resize',reposition,{passive:true});
+  window.addEventListener('scroll',reposition,{passive:true,capture:true});
+  window.visualViewport?.addEventListener('resize',reposition,{passive:true});
+  window.visualViewport?.addEventListener('scroll',reposition,{passive:true});
+
+  /* Keep the global cached element reference valid if some later code swaps the
+     search field. This observer does not attach event listeners to the field. */
+  if(window.MutationObserver){
+    new MutationObserver(()=>{
+      const input=getInput();
+      if(input) syncElsReference(input);
+    }).observe(document.documentElement,{childList:true,subtree:true});
+  }
+
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot,{once:true});
+  else boot();
+})();
+</script>
+<script id="v601-build-marker">/* v601: Character search suggestions rebuilt as a stable delegated body-level portal that survives serialized HTML, filter-panel changes, tab switching, and later DOM moves/rebuilds without touching unrelated Roster listeners. */</script>
+
 </body></html>
