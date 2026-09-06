@@ -3383,7 +3383,7 @@ html body #teamsSection .team-card .saved-team-name-input{
 </div>
 <div class="filter-subgroup tier-filter-group">
 
-<select id="characterTierSourceSelect" class="character-tier-source-select" aria-label="Choose tier ratings to filter"><option value="wb">WB Tiers</option><option value="mine">My Tiers</option><option value="community" disabled>Community</option></select><div class="tier-filter" id="tierFilters"><button class="chip">S</button><button class="chip">A</button><button class="chip">B</button><button class="chip">C</button></div>
+<select id="characterTierSourceSelect" class="character-tier-source-select" aria-label="Choose tier ratings to filter"><option value="wb">WB Tiers</option><option value="mine">My Tiers</option><option value="community">Community</option></select><div class="tier-filter" id="tierFilters"><button class="chip">S</button><button class="chip">A</button><button class="chip">B</button><button class="chip">C</button></div>
 <button class="tier-key-btn wb-key-icon-btn" id="tierKeyBtn" type="button" aria-label="Open tier key" title="Tier Key"><svg class="wb-antique-key-icon" viewBox="0 0 32 32" aria-hidden="true"><circle cx="10" cy="10" r="6.4"></circle><circle cx="10" cy="10" r="2.25"></circle><path d="M14.55 14.55 29 29M20.25 20.25l-2.35 2.35M23.25 23.25l3.05-3.05M26.15 26.15l3.1-3.1"></path><path d="M5.75 5.75c1.18-1.52 2.6-2.28 4.25-2.28s3.07.76 4.25 2.28"></path></svg></button><button class="star-filter-btn wb-tier-inline-quick" id="not550CharacterFilterBtn" type="button" aria-pressed="false">Not 550</button>
 </div>
 </div>
@@ -4156,6 +4156,49 @@ const cok = !state.colors.size || state.colors.has(a.color);
 const tok = !state.tags.size || [...state.tags].every(t=>a.tags.includes(t));
 return qok && cok && tok;
 }
+/* v602: stable Community tier lookup for the Character Tier filter. */
+let wbCommunityTierIndexSource=null;
+let wbCommunityTierIndex=new Map();
+function wbNormalizeCommunityTierKey(value){
+  return String(value||'').toLowerCase().replace(/[^a-z0-9]+/g,'');
+}
+function wbGetCommunityTierIndex(){
+  const ratings=(window.wbCommunityTierRatings && typeof window.wbCommunityTierRatings==='object') ? window.wbCommunityTierRatings : {};
+  if(ratings!==wbCommunityTierIndexSource){
+    wbCommunityTierIndexSource=ratings;
+    wbCommunityTierIndex=new Map();
+    Object.entries(ratings).forEach(([key,entry])=>{
+      const normKey=wbNormalizeCommunityTierKey(key);
+      if(normKey && !wbCommunityTierIndex.has(normKey)) wbCommunityTierIndex.set(normKey,entry);
+    });
+  }
+  return wbCommunityTierIndex;
+}
+function wbCommunityTierEntryForCharacter(c){
+  if(!c) return null;
+  const ratings=(window.wbCommunityTierRatings && typeof window.wbCommunityTierRatings==='object') ? window.wbCommunityTierRatings : {};
+  const key=characterKey(c);
+  if(ratings[key]) return ratings[key];
+  const combined=`${c.name||''}||${c.subtitle||''}`;
+  if(ratings[combined]) return ratings[combined];
+  const index=wbGetCommunityTierIndex();
+  for(const candidate of [key,combined,`${c.name||''} ${c.subtitle||''}`,`${c.name||''} — ${c.subtitle||''}`]){
+    const hit=index.get(wbNormalizeCommunityTierKey(candidate));
+    if(hit) return hit;
+  }
+  /* Name-only fallback is safe only when that name identifies one roster entry. */
+  const sameNameCount=DATA.reduce((n,x)=>n+(x?.name===c.name?1:0),0);
+  if(sameNameCount===1){
+    if(ratings[c.name]) return ratings[c.name];
+    const hit=index.get(wbNormalizeCommunityTierKey(c.name));
+    if(hit) return hit;
+  }
+  return null;
+}
+function wbCommunityTierForCharacter(c){
+  const tier=String(wbCommunityTierEntryForCharacter(c)?.tier||'').toUpperCase();
+  return ['S','A','B','C'].includes(tier)?tier:'';
+}
 function charMatches(c){
 if(state.not550Only && selectedLevelFor(c)===550) return false;
 if(state.noStarOnly && starRatingFor(c)!==0) return false;
@@ -4185,7 +4228,7 @@ const q = norm(state.query);
 const direct = !q || [c.name,c.subtitle,...c.affiliations].some(x=>norm(x).includes(q));
 const abilities = c.abilities.filter(abilityMatches);
 const colorTagActive = state.colors.size || state.tags.size;
-const tierValueForFilter = state.tierSource==='mine' ? (tierRatings[characterKey(c)] || tierRatings[c.name] || '') : (state.tierSource==='community' ? ((window.wbCommunityTierRatings?.[characterKey(c)]||window.wbCommunityTierRatings?.[c.name]||{}).tier||'') : htmlTierForCharacter(c));
+const tierValueForFilter = state.tierSource==='mine' ? (tierRatings[characterKey(c)] || tierRatings[c.name] || '') : (state.tierSource==='community' ? wbCommunityTierForCharacter(c) : htmlTierForCharacter(c));
 const tierOk = !state.tiers.size || state.tiers.has(tierValueForFilter);
 return tierOk && ((direct && !colorTagActive) || abilities.length>0 || (!q && !colorTagActive));
 }
@@ -17937,28 +17980,34 @@ try{
 
   function ensureLightbox(){
     let overlay=document.getElementById(OVERLAY_ID);
-    if(overlay) return overlay;
-    overlay=document.createElement('div');
-    overlay.id=OVERLAY_ID;
-    overlay.setAttribute('aria-hidden','true');
-    overlay.innerHTML=''+
-      '<div class="wb-portrait-lightbox-card" role="dialog" aria-modal="true" aria-labelledby="wbPortraitLightboxTitle" tabindex="-1">'+
-        '<div class="wb-portrait-lightbox-head">'+
-          '<div>'+ 
-            '<div class="wb-portrait-lightbox-title" id="wbPortraitLightboxTitle">Character Portrait</div>'+ 
-            '<div class="wb-portrait-lightbox-sub">Tap outside the portrait or press Escape to close.</div>'+ 
+    if(!overlay){
+      overlay=document.createElement('div');
+      overlay.id=OVERLAY_ID;
+      overlay.setAttribute('aria-hidden','true');
+      overlay.innerHTML=''+
+        '<div class="wb-portrait-lightbox-card" role="dialog" aria-modal="true" aria-labelledby="wbPortraitLightboxTitle" tabindex="-1">'+
+          '<div class="wb-portrait-lightbox-head">'+
+            '<div>'+ 
+              '<div class="wb-portrait-lightbox-title" id="wbPortraitLightboxTitle">Character Portrait</div>'+ 
+              '<div class="wb-portrait-lightbox-sub">Tap outside the portrait or press Escape to close.</div>'+ 
+            '</div>'+ 
           '</div>'+ 
-        '</div>'+ 
-        '<div class="wb-portrait-lightbox-frame">'+ 
-          '<img class="wb-portrait-lightbox-image" alt="">'+ 
-        '</div>'+ 
-      '</div>';
-    document.body.appendChild(overlay);
+          '<div class="wb-portrait-lightbox-frame">'+ 
+            '<img class="wb-portrait-lightbox-image" alt="">'+ 
+          '</div>'+ 
+        '</div>';
+      document.body.appendChild(overlay);
+    }
     const card=overlay.querySelector('.wb-portrait-lightbox-card');
-    overlay.addEventListener('click',function(e){
-      if(e.target===overlay) closeLightbox();
-    });
-    card?.addEventListener('click',function(e){ e.stopPropagation(); });
+    /* v603: event listeners are runtime-only. A baked overlay may already exist
+       after saving the HTML, so always rebuild state and bind the existing node. */
+    if(!overlay.__wbPortraitLightboxBound){
+      overlay.__wbPortraitLightboxBound=true;
+      overlay.addEventListener('click',function(e){
+        if(e.target===overlay) closeLightbox();
+      });
+      card?.addEventListener('click',function(e){ e.stopPropagation(); });
+    }
     state={
       overlay,
       image:overlay.querySelector('.wb-portrait-lightbox-image'),
@@ -21585,6 +21634,9 @@ html body #charactersSection #characterTierSourceSelect option[value="community"
   function refreshRoster(){
     try{wbInvalidateRosterMatchCache();}catch(_e){}
     try{wbResetRosterBatch();}catch(_e){}
+    /* v602: if Community is the active tier source, a refreshed aggregate can
+       change which characters belong in S/A/B/C, so rebuild the list too. */
+    try{renderList();}catch(_e){}
     try{renderView();}catch(_e){}
     try{renderFilters();}catch(_e){}
   }
@@ -21635,7 +21687,7 @@ html body #charactersSection #characterTierSourceSelect option[value="community"
     const originalTierHtml=tierHtml;
     tierHtml=function(key,legacyName){
       const html=originalTierHtml(key,legacyName);
-      const entry=window.wbCommunityTierRatings?.[key]||window.wbCommunityTierRatings?.[legacyName];
+      const entry=(typeof wbCommunityTierEntryForCharacter==='function' ? wbCommunityTierEntryForCharacter(DATA.find(c=>characterKey(c)===key) || DATA.find(c=>c.name===legacyName)) : (window.wbCommunityTierRatings?.[key]||window.wbCommunityTierRatings?.[legacyName]));
       if(!entry || !['S','A','B','C'].includes(String(entry.tier||'').toUpperCase())) return html;
       const tier=String(entry.tier).toUpperCase();
       const total=Math.max(0,Number(entry.total)||0);
@@ -21647,7 +21699,15 @@ html body #charactersSection #characterTierSourceSelect option[value="community"
 
   function init(){
     const opt=communityOption();
-    if(opt){opt.disabled=true;opt.textContent='Community…';}
+    /* v603: the Community source is a valid filter as soon as a collector URL
+       is configured. Do not gray it out while the aggregate request is loading. */
+    if(opt){
+      opt.disabled=!isConfigured();
+      opt.textContent='Community';
+      opt.title=isConfigured()
+        ? 'Community rankings load automatically; select now to use the latest aggregate as soon as it arrives.'
+        : 'Community ranking collector is not configured in this build.';
+    }
     loadAggregate();
     clearInterval(refreshTimer);
     refreshTimer=setInterval(loadAggregate,REFRESH_MS);
@@ -22222,5 +22282,59 @@ body.wb-light-mode #wbCharacterSuggestionsPortal{
 })();
 </script>
 <script id="v601-build-marker">/* v601: Character search suggestions rebuilt as a stable delegated body-level portal that survives serialized HTML, filter-panel changes, tab switching, and later DOM moves/rebuilds without touching unrelated Roster listeners. */</script>
+
+
+<script id="v602-community-tier-filter-sync">
+(function(){
+  function syncTierFilterUi(){
+    const source=document.getElementById('characterTierSourceSelect');
+    const chips=[...document.querySelectorAll('#charactersSection #tierFilters .chip')];
+    if(!source || !chips.length) return;
+    const sourceName=source.value==='community'?'Community':(source.value==='mine'?'My':'WB');
+    chips.forEach(btn=>{
+      const tier=(btn.textContent||'').trim().charAt(0).toUpperCase();
+      btn.title=`Filter by ${sourceName} Tier ${tier}`;
+      btn.setAttribute('aria-label',`Filter by ${sourceName} Tier ${tier}`);
+    });
+    source.title=source.value==='community'
+      ? `${Number(window.wbCommunityTierMeta?.participantCount)||0} community participant${Number(window.wbCommunityTierMeta?.participantCount)===1?'':'s'} — S/A/B/C buttons use the aggregate Community ranking`
+      : (source.value==='mine'?'S/A/B/C buttons use My Tiers':'S/A/B/C buttons use WB Tiers');
+  }
+  function init(){
+    syncTierFilterUi();
+    const root=document.getElementById('charactersSection');
+    if(root){
+      const obs=new MutationObserver(()=>syncTierFilterUi());
+      obs.observe(root,{childList:true,subtree:true});
+    }
+    document.addEventListener('change',e=>{
+      if(e.target?.id==='characterTierSourceSelect') requestAnimationFrame(syncTierFilterUi);
+    },true);
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init,{once:true}); else init();
+})();
+</script>
+<script id="v602-build-marker">/* v602: Community aggregate rankings are wired directly and robustly into the Character S/A/B/C tier filter; aggregate refreshes now rebuild the filtered roster, and card/filter community lookup uses the same key matching. */</script>
+<script id="v603-runtime-stability-fixes">
+(function(){
+  function keepCommunityAvailable(){
+    const opt=document.querySelector('#characterTierSourceSelect option[value="community"]');
+    const endpoint=String(window.WB_COMMUNITY_TIER_ENDPOINT||'');
+    if(!opt) return;
+    const configured=/^https?:\/\//i.test(endpoint);
+    opt.disabled=!configured;
+    if(configured && (opt.textContent||'').trim()!=='Community') opt.textContent='Community';
+  }
+  function init(){
+    keepCommunityAvailable();
+    const select=document.getElementById('characterTierSourceSelect');
+    if(select){
+      new MutationObserver(keepCommunityAvailable).observe(select,{childList:true,subtree:true,attributes:true,attributeFilter:['disabled']});
+    }
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init,{once:true}); else init();
+})();
+</script>
+<script id="v603-build-marker">/* v603: portrait viewer now initializes correctly when its overlay is already baked into saved HTML; Community tier source stays selectable while aggregate data loads instead of remaining gray. */</script>
 
 </body></html>
