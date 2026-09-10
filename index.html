@@ -22598,7 +22598,7 @@ body.wb-light-mode .wb-whats-new-list li{background:rgba(255,255,255,.62);border
       <li>You can now share your teams and vote for favorites and download them!</li>
       <li>Community rage about alliance V alliance.</li>
     </ul>
-    <img class="wb-whats-new-sofun" src="images/image_cfb65aa897.webp" alt="" aria-hidden="true">
+    <img class="wb-whats-new-sofun" src="images/image_0d437f9580.webp" alt="" aria-hidden="true">
     <div class="wb-whats-new-actions"><button class="wb-whats-new-done" id="wbWhatsNewDone" type="button">Thanks, biiiiiisch!</button></div>
   </div>
 </div>
@@ -24824,5 +24824,51 @@ html body #tierKeyBtn.wb-tier-key-unseen .wb-antique-key-icon::after{
 
 
 <script id="v635-build-marker">/* WhiteBombers v1.01 Public GitHub: Community sharing now rejects any team whose same three characters already exist in Community, regardless of character order. It checks loaded/cached Community data immediately and performs a fresh app-side Community read first when the data is stale. Rejection message: “This team already exists in the community section”. No Sheet or Apps Script changes required. */</script>
+
+
+<style id="v636-heart-key-layer-fix">
+/* Keep the character Favorite heart above the unified vertical tier bar. */
+html body #charactersSection .character-card > .favorite-character-sticker{
+  z-index:140 !important;
+  pointer-events:auto !important;
+}
+
+/* The tier bar remains visible, but below the Favorite control. */
+html body #charactersSection .character-card > .wb-unified-tier-bar{
+  z-index:70 !important;
+  pointer-events:none !important;
+}
+</style>
+
+<script id="v636-tier-key-sparkle-click-fix">
+(function(){
+  const KEY='wbTierKeyClickedOnceV1';
+
+  function dismissTierKeySparkle(){
+    const btn=document.getElementById('tierKeyBtn');
+    if(!btn) return;
+    btn.classList.remove('wb-tier-key-unseen');
+    try{localStorage.setItem(KEY,'1');}catch(_e){}
+  }
+
+  function init(){
+    const btn=document.getElementById('tierKeyBtn');
+    if(!btn || btn.dataset.wbSparkleDismissBound==='1') return;
+    btn.dataset.wbSparkleDismissBound='1';
+
+    /* Do NOT use {once:true}. SOfun can reset the sparkle later, so every
+       future Tier Key click must be able to dismiss it again. */
+    btn.addEventListener('click',dismissTierKeySparkle);
+  }
+
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init,{once:true});
+  else init();
+})();
+</script>
+
+<script id="v636-build-marker">/* WhiteBombers v1.01 Public GitHub: Character Favorite heart is layered above the unified tier bar. Tier Key sparkle dismissal is now persistent rather than one-time, so it disappears whenever clicked, returns when SOfun tutorials are reset, and disappears again on the next click. */</script>
+
+
+<script id="v637-build-marker">/* WhiteBombers v1.01 Public GitHub: What's New uses the existing SOfun tutorial artwork (image_0d437f9580.webp) instead of the intro artwork. No new image generated. */</script>
 
 </body></html>
