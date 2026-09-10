@@ -6014,13 +6014,24 @@ overlay.addEventListener('click',e=>{if(e.target===overlay) closeComparisonAndCl
 overlay.querySelector('.wb-compare-clear').addEventListener('click',closeComparisonAndClear);
 return overlay;
 }
-function compareCharacterHtml(c){
+function wbCompareNumberClass(value,otherValue){
+ const a=Number(String(value??'').replace(/,/g,''));
+ const b=Number(String(otherValue??'').replace(/,/g,''));
+ if(!Number.isFinite(a) || !Number.isFinite(b) || a===b) return '';
+ return a>b ? ' wb-compare-number-higher' : ' wb-compare-number-lower';
+}
+function compareCharacterHtml(c,other){
 const level=selectedLevelFor(c);
+const health=scaledHealth(c);
+const otherHealth=other?scaledHealth(other):null;
 const colors=['Yellow','Red','Blue','Purple','Green','Black','Team-Up','Critical'];
 const rows=colors.map(color=>{
  const raw=(c.baseDamage||c.damage||{})[color];
+ const otherRaw=other?(other.baseDamage||other.damage||{})[color]:null;
  const val=typeof raw==='number'?scaledDamageValue(c,color):raw;
- return `<div class="wb-compare-stat"><span class="wb-compare-label">${escapeHtml(color)}</span><strong>${escapeHtml(val==null?'—':String(val))}</strong></div>`;
+ const otherVal=typeof otherRaw==='number'?scaledDamageValue(other,color):otherRaw;
+ const compareClass=wbCompareNumberClass(val,otherVal);
+ return `<div class="wb-compare-stat"><span class="wb-compare-label">${escapeHtml(color)}</span><strong class="${compareClass.trim()}">${escapeHtml(val==null?'—':String(val))}</strong></div>`;
 }).join('');
 const abilities=(c.abilities||[]).map(a=>{
  const swatch=colorMap[a.color]||'#8aa1c7';
@@ -6031,7 +6042,7 @@ return `<section class="wb-compare-character">
  <div class="wb-compare-name">${escapeHtml(c.name)}</div>
  <div class="wb-compare-subtitle">${escapeHtml(c.subtitle||'')}</div>
  <div class="wb-compare-level">Level ${level}</div>
- <div class="wb-compare-health"><span>Health</span><strong>${scaledHealth(c).toLocaleString()}</strong></div>
+ <div class="wb-compare-health"><span>Health</span><strong class="${wbCompareNumberClass(health,otherHealth).trim()}">${health.toLocaleString()}</strong></div>
  <div class="wb-compare-grid">${rows}</div>
  <div class="wb-compare-abilities"><div class="wb-compare-abilities-title">Abilities</div>${abilities}</div>
 </section>`;
@@ -6040,7 +6051,10 @@ function openCharacterComparison(){
 const chars=[...compareSelection].map(key=>DATA.find(c=>characterKey(c)===key)).filter(Boolean);
 if(chars.length!==2) return;
 const overlay=ensureCompareModal();
-overlay.querySelector('.wb-compare-body').innerHTML=chars.map(compareCharacterHtml).join('');
+overlay.querySelector('.wb-compare-body').innerHTML=[
+ compareCharacterHtml(chars[0],chars[1]),
+ compareCharacterHtml(chars[1],chars[0])
+].join('');
 overlay.classList.add('open');
 overlay.setAttribute('aria-hidden','false');
 }
@@ -22597,6 +22611,8 @@ body.wb-light-mode .wb-whats-new-list li{background:rgba(255,255,255,.62);border
       <li>Community tier rankings are now saved and can be filtered.</li>
       <li>You can now share your teams and vote for favorites and download them!</li>
       <li>Community rage about alliance V alliance.</li>
+      <li>Request and vote on new characters!</li>
+      <li>Visualization upgrades for comparing characters.</li>
     </ul>
     <img class="wb-whats-new-sofun" src="images/image_0d437f9580.webp" alt="" aria-hidden="true">
     <div class="wb-whats-new-actions"><button class="wb-whats-new-done" id="wbWhatsNewDone" type="button">Thanks, biiiiiisch!</button></div>
@@ -24870,5 +24886,859 @@ html body #charactersSection .character-card > .wb-unified-tier-bar{
 
 
 <script id="v637-build-marker">/* WhiteBombers v1.01 Public GitHub: What's New uses the existing SOfun tutorial artwork (image_0d437f9580.webp) instead of the intro artwork. No new image generated. */</script>
+
+
+<style id="v638-community-character-requests-style">
+/* Request + Vote special character card */
+#charactersSection .wb-character-request-card{
+  position:relative !important;
+  overflow:visible !important;
+  border-color:#475a75 !important;
+  background:linear-gradient(180deg,rgba(23,34,56,.97),rgba(13,21,36,.97)) !important;
+}
+#charactersSection .wb-character-request-card .character-card-head{
+  min-height:112px !important;
+  align-items:center !important;
+}
+#charactersSection .wb-character-request-card .character-card-identity{
+  display:flex !important;
+  align-items:center !important;
+  gap:14px !important;
+  min-width:0 !important;
+}
+#charactersSection .wb-request-portrait{
+  position:relative !important;
+  width:72px !important;
+  height:72px !important;
+  min-width:72px !important;
+  border-radius:13px !important;
+  overflow:hidden !important;
+  border:1px solid #50617a !important;
+  background:
+    radial-gradient(circle at 50% 29%,#536174 0 13px,transparent 14px),
+    radial-gradient(ellipse at 50% 104%,#445165 0 33px,transparent 34px),
+    linear-gradient(145deg,#172236,#0d1524) !important;
+  box-shadow:inset 0 0 18px rgba(0,0,0,.38),0 5px 14px rgba(0,0,0,.25) !important;
+}
+#charactersSection .wb-request-portrait::after{
+  content:"?" !important;
+  position:absolute !important;
+  inset:0 !important;
+  display:flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  padding-bottom:4px !important;
+  color:#f3f7ff !important;
+  font-size:45px !important;
+  line-height:1 !important;
+  font-weight:1000 !important;
+  text-shadow:0 2px 4px rgba(0,0,0,.75),0 0 12px rgba(99,216,255,.26) !important;
+}
+#charactersSection .wb-request-card-copy h2{
+  margin:0 0 5px !important;
+  white-space:nowrap !important;
+}
+#charactersSection .wb-request-card-copy .subtitle{
+  margin:0 !important;
+}
+#charactersSection .wb-character-request-card .ability-toggle{
+  margin-left:auto !important;
+}
+#charactersSection .wb-character-request-card.open .wb-request-body{
+  display:block !important;
+}
+#charactersSection .wb-character-request-card:not(.open) .wb-request-body{
+  display:none !important;
+}
+#charactersSection .wb-request-body{
+  border-top:1px solid var(--line) !important;
+  padding:16px !important;
+  background:rgba(4,9,17,.18) !important;
+}
+#charactersSection .wb-request-search-wrap{
+  position:relative !important;
+  margin-bottom:10px !important;
+}
+#charactersSection .wb-request-search,
+#charactersSection .wb-request-name-input{
+  width:100% !important;
+  border:1px solid #415470 !important;
+  border-radius:10px !important;
+  background:#0d1728 !important;
+  color:var(--text) !important;
+  outline:none !important;
+  padding:10px 11px !important;
+}
+#charactersSection .wb-request-search:focus,
+#charactersSection .wb-request-name-input:focus{
+  border-color:#6edcff !important;
+  box-shadow:0 0 0 2px rgba(99,216,255,.10) !important;
+}
+#charactersSection .wb-request-entry-row{
+  display:grid !important;
+  grid-template-columns:minmax(0,1fr) auto !important;
+  gap:8px !important;
+  align-items:center !important;
+  margin-bottom:14px !important;
+}
+#charactersSection .wb-request-submit{
+  height:40px !important;
+  padding:0 14px !important;
+  border:1px solid #69d8ff !important;
+  border-radius:10px !important;
+  background:linear-gradient(180deg,#257ca1,#185774) !important;
+  color:#f3fbff !important;
+  font-weight:950 !important;
+  cursor:pointer !important;
+}
+#charactersSection .wb-request-submit:disabled{opacity:.55 !important;cursor:wait !important;}
+#charactersSection .wb-request-suggestions{
+  display:none !important;
+  position:absolute !important;
+  left:0 !important;
+  right:0 !important;
+  top:calc(100% + 4px) !important;
+  z-index:500 !important;
+  max-height:230px !important;
+  overflow:auto !important;
+  border:1px solid #40536e !important;
+  border-radius:10px !important;
+  background:rgba(12,20,34,.985) !important;
+  box-shadow:0 12px 28px rgba(0,0,0,.45) !important;
+  padding:4px !important;
+}
+#charactersSection .wb-request-suggestions.show{display:block !important;}
+#charactersSection .wb-request-suggestion{
+  display:block !important;
+  width:100% !important;
+  border:0 !important;
+  border-radius:7px !important;
+  background:transparent !important;
+  color:var(--text) !important;
+  padding:8px 9px !important;
+  text-align:left !important;
+  cursor:pointer !important;
+  font-weight:850 !important;
+}
+#charactersSection .wb-request-suggestion:hover,
+#charactersSection .wb-request-suggestion.active{
+  background:rgba(99,216,255,.13) !important;
+}
+#charactersSection .wb-request-list{
+  display:grid !important;
+  gap:7px !important;
+}
+#charactersSection .wb-request-item{
+  display:grid !important;
+  grid-template-columns:minmax(0,1fr) auto auto !important;
+  gap:8px !important;
+  align-items:center !important;
+  min-height:43px !important;
+  padding:7px 9px 7px 12px !important;
+  border:1px solid #31425b !important;
+  border-radius:11px !important;
+  background:rgba(255,255,255,.035) !important;
+}
+#charactersSection .wb-request-item-name{
+  min-width:0 !important;
+  overflow:hidden !important;
+  text-overflow:ellipsis !important;
+  white-space:nowrap !important;
+  font-weight:900 !important;
+}
+#charactersSection .wb-request-vote{
+  position:relative !important;
+  min-width:44px !important;
+  height:31px !important;
+  display:inline-flex !important;
+  align-items:center !important;
+  justify-content:flex-start !important;
+  gap:5px !important;
+  border:1px solid #526784 !important;
+  border-radius:999px !important;
+  background:#101a2a !important;
+  color:#aebed1 !important;
+  padding:0 8px !important;
+  cursor:pointer !important;
+  font-weight:950 !important;
+}
+#charactersSection .wb-request-vote .wb-request-heart{
+  color:#748399 !important;
+  font-size:17px !important;
+  line-height:1 !important;
+}
+#charactersSection .wb-request-vote.on{
+  border-color:#ff6b86 !important;
+  background:#4b1524 !important;
+  color:#ffd9e1 !important;
+}
+#charactersSection .wb-request-vote.on .wb-request-heart{
+  color:#ff5e7d !important;
+  text-shadow:0 0 8px rgba(255,94,125,.4) !important;
+}
+#charactersSection .wb-request-owner-delete{
+  display:none !important;
+  width:31px !important;
+  height:31px !important;
+  align-items:center !important;
+  justify-content:center !important;
+  border:1px solid #7d4d59 !important;
+  border-radius:8px !important;
+  background:#26131a !important;
+  color:#ff9aad !important;
+  cursor:pointer !important;
+}
+html[data-wb-build-mode="owner"] #charactersSection .wb-request-owner-delete{
+  display:inline-flex !important;
+}
+#charactersSection .wb-request-empty{
+  padding:18px 10px !important;
+  text-align:center !important;
+  color:var(--muted) !important;
+  font-size:12px !important;
+}
+#charactersSection .wb-request-note{
+  margin:1px 0 9px !important;
+  color:var(--muted) !important;
+  font-size:10px !important;
+  text-align:right !important;
+}
+
+/* Request feature modals use the same app treatment as Share confirmation. */
+html body .wb-request-modal-overlay{
+  position:fixed !important;
+  inset:0 !important;
+  z-index:2147483620 !important;
+  display:none !important;
+  align-items:center !important;
+  justify-content:center !important;
+  padding:16px !important;
+  background:rgba(2,5,10,.76) !important;
+  backdrop-filter:blur(5px) !important;
+}
+html body .wb-request-modal-overlay.open{display:flex !important;}
+html body .wb-request-modal{
+  position:relative !important;
+  width:min(470px,calc(100vw - 28px)) !important;
+  padding:21px !important;
+  border:2px solid rgba(99,216,255,.62) !important;
+  border-radius:19px !important;
+  background:linear-gradient(180deg,#18243a,#101827) !important;
+  box-shadow:0 24px 90px rgba(0,0,0,.65),0 0 30px rgba(99,216,255,.12) !important;
+}
+html body .wb-request-modal h3{margin:0 0 10px !important;font-size:23px !important;}
+html body .wb-request-modal p{margin:0 0 17px !important;color:#c6d3e4 !important;line-height:1.45 !important;}
+html body .wb-request-modal-actions{display:flex !important;justify-content:flex-end !important;gap:8px !important;}
+html body .wb-request-modal-actions button{
+  border:1px solid #526985 !important;border-radius:9px !important;
+  padding:8px 12px !important;background:#152238 !important;color:#eef6ff !important;font-weight:900 !important;
+}
+html body .wb-request-modal-actions .primary{
+  border-color:#69d8ff !important;background:linear-gradient(180deg,#277fa6,#185975) !important;
+}
+
+@media(max-width:560px){
+  #charactersSection .wb-request-portrait{width:60px !important;height:60px !important;min-width:60px !important;}
+  #charactersSection .wb-request-portrait::after{font-size:38px !important;}
+  #charactersSection .wb-request-card-copy h2{font-size:22px !important;}
+  #charactersSection .wb-request-entry-row{grid-template-columns:minmax(0,1fr) auto !important;}
+}
+</style>
+
+<script id="v638-community-character-requests-script">
+(function(){
+  const ENDPOINT=String(window.WB_COMMUNITY_TIER_ENDPOINT||'');
+  const PARTICIPANT_KEY='wbCommunityTierParticipantIdV1';
+  const VOTES_KEY='wbCommunityCharacterRequestVotesV1';
+  const CACHE_KEY='wbCommunityCharacterRequestsCacheV1';
+  const OWNER_DELETE_KEY_STORAGE='wbCommunityOwnerDeleteKeyV1';
+  const REFRESH_MS=5*60*1000;
+  const FRESH_MS=30*1000;
+
+  let requests=[];
+  let votedIds=new Set();
+  let lastSuccessfulLoad=0;
+  let loadInFlight=false;
+  let open=false;
+  let searchText='';
+  let refreshTimer=0;
+
+  try{
+    const saved=JSON.parse(localStorage.getItem(VOTES_KEY)||'[]');
+    if(Array.isArray(saved)) votedIds=new Set(saved.map(String));
+  }catch(_e){}
+
+  function configured(){return /^https?:\/\//i.test(ENDPOINT);}
+  function ownerBuild(){
+    return String(window.WB_BUILD_MODE||document.documentElement.dataset.wbBuildMode||'owner')==='owner';
+  }
+  function participantId(){
+    try{
+      let id=localStorage.getItem(PARTICIPANT_KEY)||'';
+      if(!id){
+        id=(crypto?.randomUUID?.()||('wb-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,12)));
+        localStorage.setItem(PARTICIPANT_KEY,id);
+      }
+      return id;
+    }catch(_e){return 'wb-anon-'+Math.random().toString(36).slice(2,12);}
+  }
+  function esc(v){
+    return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  function canonical(v){
+    return String(v??'').replace(/\s+/g,' ').trim().toLocaleLowerCase();
+  }
+  function clean(raw){
+    if(!raw || typeof raw!=='object') return null;
+    const id=String(raw.id||raw.requestId||'').trim();
+    const name=String(raw.name||'').replace(/\s+/g,' ').trim().slice(0,100);
+    if(!id || !name) return null;
+    return {
+      id,
+      name,
+      createdAt:String(raw.createdAt||''),
+      requestedAt:String(raw.requestedAt||raw.updatedAt||''),
+      voteCount:Math.max(0,Number(raw.voteCount ?? raw.votes ?? 0)||0)
+    };
+  }
+  function sorted(list=requests){
+    return [...list].sort((a,b)=>{
+      const likes=(Number(b.voteCount)||0)-(Number(a.voteCount)||0);
+      if(likes) return likes;
+      const bt=Date.parse(String(b.requestedAt||b.createdAt||''))||0;
+      const at=Date.parse(String(a.requestedAt||a.createdAt||''))||0;
+      return bt-at || String(a.name||'').localeCompare(String(b.name||''));
+    });
+  }
+  function saveVotes(){
+    try{localStorage.setItem(VOTES_KEY,JSON.stringify([...votedIds]));}catch(_e){}
+  }
+  function saveCache(){
+    try{localStorage.setItem(CACHE_KEY,JSON.stringify({savedAt:Date.now(),requests}));}catch(_e){}
+  }
+  function restoreCache(){
+    try{
+      const cached=JSON.parse(localStorage.getItem(CACHE_KEY)||'null');
+      if(!cached || !Array.isArray(cached.requests)) return false;
+      requests=cached.requests.map(clean).filter(Boolean);
+      lastSuccessfulLoad=Math.max(0,Number(cached.savedAt)||0);
+      return true;
+    }catch(_e){return false;}
+  }
+  function post(data){
+    if(!configured()) return Promise.reject(new Error('Community collector is not configured.'));
+    const body=JSON.stringify(data);
+    return fetch(ENDPOINT,{
+      method:'POST',
+      mode:'no-cors',
+      keepalive:true,
+      headers:{'Content-Type':'text/plain;charset=UTF-8'},
+      body
+    });
+  }
+  function toast(msg,ok=true){
+    let el=document.getElementById('wbCharacterRequestToast');
+    if(!el){
+      el=document.createElement('div');
+      el.id='wbCharacterRequestToast';
+      el.style.cssText='position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:2147483630;padding:9px 12px;border:1px solid #60738b;border-radius:10px;background:rgba(11,18,29,.97);color:#edf7ff;font:800 12px/1.2 system-ui,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.45);opacity:0;pointer-events:none;transition:opacity .15s ease;max-width:min(92vw,520px);text-align:center';
+      document.body.appendChild(el);
+    }
+    el.textContent=msg;
+    el.style.borderColor=ok?'#5bd69b':'#ff7f88';
+    el.style.opacity='1';
+    clearTimeout(el._wbTimer);
+    el._wbTimer=setTimeout(()=>{el.style.opacity='0';},2600);
+  }
+
+  function messageModal(title,message,options={}){
+    return new Promise(resolve=>{
+      let overlay=document.getElementById('wbCharacterRequestModalOverlay');
+      if(!overlay){
+        overlay=document.createElement('div');
+        overlay.id='wbCharacterRequestModalOverlay';
+        overlay.className='wb-request-modal-overlay';
+        overlay.setAttribute('aria-hidden','true');
+        document.body.appendChild(overlay);
+      }
+      const confirm=!!options.confirm;
+      overlay.innerHTML=`
+        <div class="wb-request-modal card" role="dialog" aria-modal="true">
+          <h3>${esc(title)}</h3>
+          <p>${esc(message)}</p>
+          <div class="wb-request-modal-actions">
+            ${confirm?'<button type="button" data-wb-request-modal="cancel">Cancel</button>':''}
+            <button type="button" class="primary" data-wb-request-modal="${confirm?'confirm':'ok'}">${confirm?'Delete':'OK'}</button>
+          </div>
+        </div>`;
+      let settled=false;
+      const finish=value=>{
+        if(settled) return;
+        settled=true;
+        overlay.classList.remove('open');
+        overlay.setAttribute('aria-hidden','true');
+        overlay.removeEventListener('click',onClick);
+        document.removeEventListener('keydown',onKey);
+        resolve(value);
+      };
+      const onClick=e=>{
+        const action=e.target.closest?.('[data-wb-request-modal]')?.dataset?.wbRequestModal;
+        if(action==='confirm') return finish(true);
+        if(action==='ok' || action==='cancel' || e.target===overlay) return finish(false);
+      };
+      const onKey=e=>{if(e.key==='Escape') finish(false);};
+      overlay.addEventListener('click',onClick);
+      document.addEventListener('keydown',onKey);
+      overlay.classList.add('open');
+      overlay.setAttribute('aria-hidden','false');
+      requestAnimationFrame(()=>overlay.querySelector('.primary')?.focus());
+    });
+  }
+
+  function requestCardHtml(){
+    return `
+      <section class="card character-card wb-character-request-card ${open?'open':''}" id="wbCharacterRequestCard">
+        <div class="character-card-head" id="wbCharacterRequestHeader">
+          <div class="character-card-identity">
+            <span class="wb-request-portrait" aria-hidden="true"></span>
+            <div class="character-card-copy wb-request-card-copy">
+              <h2>Request and Vote!</h2>
+              <div class="subtitle" id="wbCharacterRequestSubtitle">${requests.length} requested character${requests.length===1?'':'s'}</div>
+            </div>
+          </div>
+          <button class="ability-toggle" id="wbCharacterRequestToggle" type="button" aria-label="${open?'Collapse':'Expand'} character requests">
+            <span class="chev">⌄</span>
+          </button>
+        </div>
+        <div class="character-abilities wb-request-body">
+          <div class="wb-request-search-wrap">
+            <input id="wbCharacterRequestSearch" class="wb-request-search" type="search" autocomplete="off" placeholder="Please search your character before requesting" aria-label="Search requested characters">
+            <div id="wbCharacterRequestSuggestions" class="wb-request-suggestions" role="listbox" aria-label="Requested character suggestions"></div>
+          </div>
+          <div class="wb-request-entry-row">
+            <input id="wbCharacterRequestInput" class="wb-request-name-input" type="text" autocomplete="off" maxlength="100" placeholder="Character name…" aria-label="Character name to request">
+            <button id="wbCharacterRequestSubmit" class="wb-request-submit" type="button">Request</button>
+          </div>
+          <div class="wb-request-note">Most liked requests appear first.</div>
+          <div id="wbCharacterRequestList" class="wb-request-list"></div>
+        </div>
+      </section>`;
+  }
+
+  function ensureCard(){
+    const view=document.querySelector('#charactersSection .main, #charactersSection');
+    const grid=document.querySelector('#charactersSection .characters-grid');
+    if(!grid){
+      const host=(window.els&&els.view)||document.querySelector('#charactersSection .character-view, #charactersSection .main');
+      if(!host || host.querySelector('#wbCharacterRequestCard')) return;
+      const shell=document.createElement('div');
+      shell.className='characters-grid wb-request-only-grid';
+      shell.innerHTML=requestCardHtml();
+      host.prepend(shell);
+      bindCard(shell.querySelector('#wbCharacterRequestCard'));
+      return;
+    }
+    let card=grid.querySelector(':scope > #wbCharacterRequestCard');
+    if(!card){
+      grid.insertAdjacentHTML('afterbegin',requestCardHtml());
+      card=grid.querySelector(':scope > #wbCharacterRequestCard');
+      bindCard(card);
+    }else{
+      updateCard(card);
+    }
+  }
+
+  function filteredRequests(){
+    const q=canonical(searchText);
+    const list=sorted();
+    if(!q) return list;
+    return list.filter(r=>canonical(r.name).includes(q));
+  }
+
+  function updateCard(card=document.getElementById('wbCharacterRequestCard')){
+    if(!card) return;
+    card.classList.toggle('open',open);
+    const toggle=card.querySelector('#wbCharacterRequestToggle');
+    if(toggle) toggle.setAttribute('aria-label',open?'Collapse character requests':'Expand character requests');
+    const subtitle=card.querySelector('#wbCharacterRequestSubtitle');
+    if(subtitle) subtitle.textContent=`${requests.length} requested character${requests.length===1?'':'s'}`;
+    const search=card.querySelector('#wbCharacterRequestSearch');
+    if(search && search.value!==searchText) search.value=searchText;
+    renderList(card);
+  }
+
+  function renderList(card=document.getElementById('wbCharacterRequestCard')){
+    if(!card) return;
+    const host=card.querySelector('#wbCharacterRequestList');
+    if(!host) return;
+    const list=filteredRequests();
+    host.innerHTML=list.length
+      ? list.map(r=>`
+          <div class="wb-request-item" data-request-id="${esc(r.id)}">
+            <div class="wb-request-item-name" title="${esc(r.name)}">${esc(r.name)}</div>
+            <button type="button" class="wb-request-vote ${votedIds.has(r.id)?'on':''}" data-request-vote="${esc(r.id)}" aria-pressed="${votedIds.has(r.id)?'true':'false'}" aria-label="${votedIds.has(r.id)?'Remove vote from':'Vote for'} ${esc(r.name)}">
+              <span class="wb-request-heart" aria-hidden="true">♥</span>
+              <span>${Math.max(0,Number(r.voteCount)||0)}</span>
+            </button>
+            ${ownerBuild()?`<button type="button" class="wb-request-owner-delete" data-request-delete="${esc(r.id)}" aria-label="Delete ${esc(r.name)}" title="Delete request">🗑</button>`:''}
+          </div>`).join('')
+      : `<div class="wb-request-empty">${requests.length?'No requested characters match your search.':'No characters have been requested yet.'}</div>`;
+  }
+
+  function updateSuggestions(card,activeIndex=-1){
+    const input=card.querySelector('#wbCharacterRequestSearch');
+    const box=card.querySelector('#wbCharacterRequestSuggestions');
+    if(!input || !box) return [];
+    const q=canonical(input.value);
+    if(!q){box.classList.remove('show');box.innerHTML='';return [];}
+    const items=sorted().filter(r=>canonical(r.name).includes(q)).slice(0,8);
+    box.innerHTML=items.map((r,i)=>`<button type="button" class="wb-request-suggestion ${i===activeIndex?'active':''}" role="option" data-request-suggestion="${i}">${esc(r.name)}</button>`).join('');
+    box.classList.toggle('show',items.length>0);
+    return items;
+  }
+
+  async function submitRequest(card){
+    const input=card.querySelector('#wbCharacterRequestInput');
+    const btn=card.querySelector('#wbCharacterRequestSubmit');
+    if(!input || !btn) return;
+    const name=String(input.value||'').replace(/\s+/g,' ').trim().slice(0,100);
+    if(!name){toast('Enter a character name first.',false);input.focus();return;}
+
+    btn.disabled=true;
+
+    /* Refresh stale data first so exact duplicates are rejected before posting. */
+    if(!lastSuccessfulLoad || (Date.now()-lastSuccessfulLoad)>FRESH_MS){
+      await loadRequests({force:true,silent:true});
+    }
+
+    const duplicate=requests.find(r=>canonical(r.name)===canonical(name));
+    if(duplicate){
+      btn.disabled=false;
+      await messageModal('Already requested',`${duplicate.name} already exists in the request list.`);
+      return;
+    }
+
+    const now=new Date().toISOString();
+    const id='request-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,10);
+    const entry={id,name,createdAt:now,requestedAt:now,voteCount:0};
+    requests.push(entry);
+    saveCache();
+    input.value='';
+    updateCard(card);
+
+    try{
+      await post({
+        type:'communityCharacterRequest',
+        schemaVersion:1,
+        appVersion:'1.01',
+        participantId:participantId(),
+        updatedAt:now,
+        request:{id,name,createdAt:now}
+      });
+      toast('Character request added.');
+      setTimeout(()=>loadRequests({force:true,silent:true}),900);
+      setTimeout(()=>loadRequests({force:true,silent:true}),2600);
+    }catch(err){
+      requests=requests.filter(r=>r.id!==id);
+      saveCache();
+      updateCard(card);
+      toast('Character request could not be sent.',false);
+    }finally{
+      btn.disabled=false;
+    }
+  }
+
+  function bindCard(card){
+    if(!card || card.dataset.wbRequestBound==='1') return;
+    card.dataset.wbRequestBound='1';
+
+    const header=card.querySelector('#wbCharacterRequestHeader');
+    const toggle=card.querySelector('#wbCharacterRequestToggle');
+    const search=card.querySelector('#wbCharacterRequestSearch');
+    const submit=card.querySelector('#wbCharacterRequestSubmit');
+    const input=card.querySelector('#wbCharacterRequestInput');
+
+    const toggleOpen=e=>{
+      e?.preventDefault?.();e?.stopPropagation?.();
+      open=!open;
+      updateCard(card);
+    };
+    header?.addEventListener('click',e=>{
+      if(e.target.closest('button,input')) return;
+      toggleOpen(e);
+    });
+    toggle?.addEventListener('click',toggleOpen);
+
+    let active=-1;
+    search?.addEventListener('input',()=>{
+      searchText=search.value;
+      active=-1;
+      renderList(card);
+      updateSuggestions(card,active);
+    });
+    search?.addEventListener('focus',()=>updateSuggestions(card,active));
+    search?.addEventListener('keydown',e=>{
+      const items=updateSuggestions(card,active);
+      if(!items.length) return;
+      if(e.key==='ArrowDown'){e.preventDefault();active=(active+1)%items.length;updateSuggestions(card,active);}
+      else if(e.key==='ArrowUp'){e.preventDefault();active=(active-1+items.length)%items.length;updateSuggestions(card,active);}
+      else if(e.key==='Enter' && active>=0){
+        e.preventDefault();
+        search.value=items[active].name;
+        searchText=items[active].name;
+        active=-1;
+        card.querySelector('#wbCharacterRequestSuggestions')?.classList.remove('show');
+        renderList(card);
+      }else if(e.key==='Escape'){
+        card.querySelector('#wbCharacterRequestSuggestions')?.classList.remove('show');
+      }
+    });
+    card.querySelector('#wbCharacterRequestSuggestions')?.addEventListener('click',e=>{
+      const btn=e.target.closest('[data-request-suggestion]');
+      if(!btn) return;
+      const q=canonical(search?.value);
+      const items=sorted().filter(r=>canonical(r.name).includes(q)).slice(0,8);
+      const item=items[Number(btn.dataset.requestSuggestion)];
+      if(!item) return;
+      search.value=item.name;
+      searchText=item.name;
+      active=-1;
+      card.querySelector('#wbCharacterRequestSuggestions')?.classList.remove('show');
+      renderList(card);
+      search.focus();
+    });
+
+    submit?.addEventListener('click',()=>submitRequest(card));
+    input?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();submitRequest(card);}});
+
+    card.addEventListener('click',async e=>{
+      const voteBtn=e.target.closest('[data-request-vote]');
+      if(voteBtn){
+        e.preventDefault();e.stopPropagation();
+        const id=String(voteBtn.dataset.requestVote||'');
+        const item=requests.find(r=>r.id===id);
+        if(!item) return;
+        const removing=votedIds.has(id);
+        if(removing){
+          votedIds.delete(id);
+          item.voteCount=Math.max(0,(Number(item.voteCount)||0)-1);
+        }else{
+          votedIds.add(id);
+          item.voteCount=(Number(item.voteCount)||0)+1;
+        }
+        saveVotes();saveCache();renderList(card);
+        post({
+          type:'communityCharacterRequestVote',
+          schemaVersion:1,
+          appVersion:'1.01',
+          participantId:participantId(),
+          updatedAt:new Date().toISOString(),
+          requestId:id,
+          vote:removing?0:1
+        }).then(()=>setTimeout(()=>loadRequests({force:true,silent:true}),700))
+          .catch(()=>toast('Vote could not be sent.',false));
+        return;
+      }
+
+      const delBtn=e.target.closest('[data-request-delete]');
+      if(delBtn){
+        e.preventDefault();e.stopPropagation();
+        if(!ownerBuild()) return;
+        const id=String(delBtn.dataset.requestDelete||'');
+        const item=requests.find(r=>r.id===id);
+        if(!item) return;
+        const approved=await messageModal('Delete character request',`Delete "${item.name}" and all of its votes for everyone?`,{confirm:true});
+        if(!approved) return;
+
+        let ownerKey='';
+        try{ownerKey=localStorage.getItem(OWNER_DELETE_KEY_STORAGE)||'';}catch(_e){}
+        if(!ownerKey){
+          ownerKey=String(prompt('Enter the Community owner delete key:')||'').trim();
+          if(!ownerKey) return;
+          try{localStorage.setItem(OWNER_DELETE_KEY_STORAGE,ownerKey);}catch(_e){}
+        }
+
+        delBtn.disabled=true;
+        try{
+          await post({
+            type:'communityCharacterRequestDelete',
+            schemaVersion:1,
+            appVersion:'1.01',
+            participantId:participantId(),
+            updatedAt:new Date().toISOString(),
+            requestId:id,
+            ownerKey
+          });
+          requests=requests.filter(r=>r.id!==id);
+          votedIds.delete(id);
+          saveVotes();saveCache();updateCard(card);
+          toast('Character request delete sent.');
+          setTimeout(()=>loadRequests({force:true,silent:true}),1000);
+          setTimeout(async()=>{
+            await loadRequests({force:true,silent:true});
+            if(requests.some(r=>r.id===id)){
+              try{localStorage.removeItem(OWNER_DELETE_KEY_STORAGE);}catch(_e){}
+              toast('Delete was not confirmed. Re-enter the owner delete key and try again.',false);
+            }else toast('Character request deleted.');
+          },2600);
+        }catch(err){
+          delBtn.disabled=false;
+          toast('Could not delete character request.',false);
+        }
+      }
+    });
+
+    updateCard(card);
+  }
+
+  function loadRequests(options={}){
+    const force=!!options.force;
+    const silent=!!options.silent;
+    clearTimeout(refreshTimer);
+    return new Promise(resolve=>{
+      if(!configured()){if(!silent) toast('Community collector is not configured.',false);resolve(requests);return;}
+      if(loadInFlight && !force){resolve(requests);return;}
+      loadInFlight=true;
+
+      const cb='__wbCharacterRequestsJsonp_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8);
+      const script=document.createElement('script');
+      let done=false;
+      const finish=data=>{
+        if(done) return;
+        done=true;
+        clearTimeout(timer);
+        try{delete window[cb];}catch(_e){window[cb]=undefined;}
+        try{script.remove();}catch(_e){}
+        loadInFlight=false;
+        refreshTimer=setTimeout(()=>loadRequests({silent:true}),REFRESH_MS);
+        ensureCard();
+        resolve(data||requests);
+      };
+      const timer=setTimeout(()=>finish(requests),11000);
+
+      window[cb]=data=>{
+        if(data?.ok===true && Array.isArray(data.requests)){
+          requests=data.requests.map(clean).filter(Boolean);
+          lastSuccessfulLoad=Date.now();
+          saveCache();
+          updateCard();
+          return finish(requests);
+        }
+        finish(requests);
+      };
+      script.async=true;
+      script.onerror=()=>finish(requests);
+      const joiner=ENDPOINT.includes('?')?'&':'?';
+      script.src=ENDPOINT+joiner+'mode=characterRequests&callback='+encodeURIComponent(cb)+'&_='+Date.now();
+      document.head.appendChild(script);
+    });
+  }
+
+  function start(){
+    restoreCache();
+    ensureCard();
+    loadRequests({silent:true});
+
+    const host=document.getElementById('charactersSection');
+    if(host){
+      new MutationObserver(()=>{
+        if(document.querySelector('#charactersSection .characters-grid') &&
+           !document.getElementById('wbCharacterRequestCard')){
+          ensureCard();
+        }
+      }).observe(host,{childList:true,subtree:true});
+    }
+
+    /* Keep the special card first even after roster re-renders / filter changes. */
+    document.addEventListener('click',e=>{
+      if(e.target.closest?.('#wbCharacterRequestCard')) return;
+      document.getElementById('wbCharacterRequestSuggestions')?.classList.remove('show');
+    });
+
+    window.wbLoadCommunityCharacterRequests=loadRequests;
+    window.wbCommunityCharacterRequests=()=>requests.slice();
+  }
+
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',start,{once:true});
+  else start();
+})();
+</script>
+
+<script id="v638-build-marker">/* WhiteBombers v1.01: added Request and Vote character card at the top of the roster. Requests are stored in Community Character Requests, votes in Community Character Request Votes, sorted by likes; exact duplicate names are blocked; search has type-ahead suggestions; Owner build can delete requests and their votes. */</script>
+
+
+<style id="v639-request-card-compact-style">
+/* Shorten ONLY the collapsed Request and Vote card by exactly ~4mm
+   (4mm = 15.12 CSS px at 96dpi). Nothing inside is resized; only the
+   top/bottom breathing room around the existing 72px portrait is reduced. */
+#charactersSection .wb-character-request-card:not(.open) > .character-card-head{
+  min-height:96.88px !important;
+  padding-top:12.44px !important;
+  padding-bottom:12.44px !important;
+}
+</style>
+
+<script id="v639-build-marker">/* WhiteBombers v1.01: collapsed Request and Vote card shortened by ~4mm without reducing portrait, text, controls, or any other element sizes; request-search placeholder changed to “Please search your character before requesting”. */</script>
+
+
+<style id="v640-request-card-actual-height-style">
+/* v640: the previous min-height reduction was being visually defeated by
+   CSS Grid's default stretch behavior. Let this special card be shorter than
+   standard character cards and give the collapsed state an explicit height. */
+#charactersSection .characters-grid > .wb-character-request-card:not(.open){
+  align-self:start !important;
+  height:96.88px !important;       /* 112px - 4mm (15.12px) */
+  min-height:96.88px !important;
+  max-height:96.88px !important;
+}
+
+/* Lock the collapsed header to the same shorter height without changing
+   portrait, text, arrow, or font sizes. */
+#charactersSection .wb-character-request-card:not(.open) > .character-card-head{
+  height:96.88px !important;
+  min-height:96.88px !important;
+  max-height:96.88px !important;
+  padding-top:12.44px !important;
+  padding-bottom:12.44px !important;
+  overflow:visible !important;
+}
+
+/* Requested position adjustments; transforms do not affect element size. */
+#charactersSection .wb-character-request-card:not(.open) .wb-request-card-copy{
+  transform:translateY(3.78px) !important; /* moved up 2mm from v640 */
+}
+#charactersSection .wb-character-request-card:not(.open) .wb-request-portrait{
+  transform:translateY(-3.78px) !important; /* moved up 2mm from v640 */
+}
+</style>
+
+<script id="v640-build-marker">/* WhiteBombers v1.01: Request and Vote collapsed card now actually renders ~4mm shorter by disabling grid stretch and using an explicit 96.88px height; card text moved 3mm lower and portrait moved 1mm lower without resizing either. */</script>
+
+
+<script id="v641-build-marker">/* WhiteBombers v1.01: Request and Vote collapsed-card text and portrait each moved up exactly 2mm from v640. No other card sizing, spacing, or styling changed. */</script>
+
+
+<style id="v642-compare-stat-highlight-style">
+/* Comparison: subtle value-only highlight. Layout, cards, labels and spacing stay unchanged. */
+html body .wb-compare-health strong.wb-compare-number-higher,
+html body .wb-compare-stat strong.wb-compare-number-higher{
+  color:#baf2d3 !important;
+  background:rgba(66,190,121,.10) !important;
+  box-shadow:0 0 0 2px rgba(66,190,121,.055),0 0 9px rgba(66,190,121,.07) !important;
+  border-radius:4px !important;
+}
+html body .wb-compare-health strong.wb-compare-number-lower,
+html body .wb-compare-stat strong.wb-compare-number-lower{
+  color:#f4b9bf !important;
+  background:rgba(215,77,91,.09) !important;
+  box-shadow:0 0 0 2px rgba(215,77,91,.05),0 0 9px rgba(215,77,91,.06) !important;
+  border-radius:4px !important;
+}
+</style>
+
+<script id="v642-build-marker">/* WhiteBombers v1.01: Side-by-side character comparison now subtly highlights the higher Health and corresponding Match Damage values green and the lower values red. Equal or unavailable values remain unchanged; comparison layout and styling otherwise stay the same. */</script>
+
+
+<script id="v643-build-marker">/* WhiteBombers v1.01: added two What's New bullets at the bottom: Request and vote on new characters! and Visualization upgrades for comparing characters. */</script>
 
 </body></html>
