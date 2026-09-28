@@ -11559,14 +11559,22 @@ body.wb-page-supports{
 (function(){
   function bindRoleSearch(){
     const input=document.getElementById('roleFilterSearch');
-    if(!input || input.dataset.wbRoleBound==='1') return;
-    input.dataset.wbRoleBound='1';
+    if(!input || input.dataset.wbRoleSearchBoundV955==='1') return;
+    input.dataset.wbRoleSearchBoundV955='1';
+
+    // Older saved HTML can already contain data-wb-role-bound="1".
+    // That flag must not prevent the real search listener from being attached.
     input.addEventListener('click',e=>e.stopPropagation());
     input.addEventListener('pointerdown',e=>e.stopPropagation());
-    input.addEventListener('input',()=>{
+
+    const refreshRoleChoices=()=>{
       if(typeof renderFilters==='function') renderFilters();
+      else if(typeof wbRenderCharacterFiltersStable==='function') wbRenderCharacterFiltersStable();
       else if(typeof render==='function') render();
-    });
+    };
+
+    input.addEventListener('input',refreshRoleChoices);
+    input.addEventListener('search',refreshRoleChoices);
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',bindRoleSearch,{once:true});
   else bindRoleSearch();
@@ -44592,7 +44600,83 @@ else apply();
 <script id="v954-build-marker">/* v954: Fixed roster jumping when adding/removing Favorite characters. Normal favorite changes now update only the affected card/sticker instead of calling the full app render. When a full character-grid rebuild is genuinely required (including Favorites-only filtering), the existing Buck and Request & Vote DOM nodes are detached before innerHTML replacement and restored synchronously in their normal Buck → Request → roster order, preserving handlers/history and eliminating the observer-driven disappear/reinsert flash. Favorite pointerdown/clicks are also isolated from the character-card header. */</script>
 
 
-<style id="v954-public-github-style">
+<script id="v955-juggernaut-role-migration">
+(function(){
+'use strict';
+const KEY='Juggernaut||Classic';
+const ROLE='F Your Board';
+const MIGRATION_KEY='wbV955JuggernautFYourBoardPrimaryV1';
+
+function forcePrimary(roles){
+  const primary=[...new Set((roles?.primary||[]).filter(Boolean).filter(r=>r!==ROLE))];
+  const secondary=[...new Set((roles?.secondary||[]).filter(Boolean).filter(r=>r!==ROLE))];
+  primary.unshift(ROLE);
+  const nextPrimary=primary.slice(0,3);
+  return {
+    primary:nextPrimary,
+    secondary:secondary.filter(r=>!nextPrimary.includes(r)).slice(0,3)
+  };
+}
+
+function apply(){
+  try{
+    const c=(DATA||[]).find(x=>
+      (typeof characterKey==='function'
+        ? characterKey(x)
+        : `${x?.name||''}||${x?.subtitle||''}`)===KEY
+    );
+    if(c)c.roles=forcePrimary(c.roles);
+  }catch(_e){}
+
+  let already=false;
+  try{already=localStorage.getItem(MIGRATION_KEY)==='1';}catch(_e){}
+  if(!already){
+    try{
+      const storageKey=typeof WB_OWNER_TAXONOMY_STORAGE_KEY!=='undefined'
+        ? WB_OWNER_TAXONOMY_STORAGE_KEY
+        : 'wbOwnerTaxonomyEditsV1';
+      let saved={};
+      try{saved=JSON.parse(localStorage.getItem(storageKey)||'{}')||{};}catch(_e){saved={};}
+
+      const edit=saved[KEY]||(saved[KEY]={});
+      const liveChar=(DATA||[]).find(x=>
+        (typeof characterKey==='function'
+          ? characterKey(x)
+          : `${x?.name||''}||${x?.subtitle||''}`)===KEY
+      );
+      edit.roles=forcePrimary(edit.roles||liveChar?.roles||{});
+
+      localStorage.setItem(storageKey,JSON.stringify(saved));
+
+      try{
+        if(typeof wbOwnerTaxonomyEdits!=='undefined'&&wbOwnerTaxonomyEdits){
+          const live=wbOwnerTaxonomyEdits[KEY]||(wbOwnerTaxonomyEdits[KEY]={});
+          live.roles={
+            primary:[...edit.roles.primary],
+            secondary:[...edit.roles.secondary]
+          };
+        }
+      }catch(_e){}
+
+      localStorage.setItem(MIGRATION_KEY,'1');
+    }catch(_e){}
+  }
+
+  try{wbRefreshOwnerTaxonomyCaches();}catch(_e){}
+  try{window.WBRelationshipEngine?.clearCaches?.();}catch(_e){}
+  try{renderFilters();}catch(_e){}
+}
+if(document.readyState==='loading'){
+  document.addEventListener('DOMContentLoaded',apply,{once:true});
+}else{
+  apply();
+}
+})();
+</script>
+<script id="v955-build-marker">/* v955: Juggernaut — Classic is explicitly locked to Primary “F Your Board” in baked DATA and via a one-time owner-taxonomy migration so stale local role snapshots cannot hide it. Roles search is repaired at the source: the old binder no longer trusts the stale data-wb-role-bound="1" HTML flag, uses its own v955 binding marker, and refreshes role choices on both input and search/clear events without rebuilding the character roster. */</script>
+
+
+<style id="v955-public-github-style">
 html[data-wb-build-mode="public"] #wbTeamStrengthOverlay .wb-combat-context-section{
   grid-template-columns:1fr !important;
 }
@@ -44601,6 +44685,6 @@ html[data-wb-build-mode="public"] #wbTeamStrengthOverlay .wb-team-counter-sectio
   display:none !important;
 }
 </style>
-<script id="v954-public-github-marker">/* v954 PUBLIC/GITHUB BUILD generated from the v954 owner master. Public mode keeps all current user-facing v954 fixes/features while suppressing Combat Loop and Good Counter Teams from Team Strengths & Weaknesses. Recently added portraits and BucketBrain use repository images/... assets. App display version remains 2.0. */</script>
+<script id="v955-public-github-marker">/* v955 PUBLIC/GITHUB BUILD generated from the v955 owner master. Public mode keeps all v955 user-facing fixes/features, including Juggernaut — Classic Primary “F Your Board” and the repaired Roles search. Combat Loop and Good Counter Teams remain suppressed in Team Strengths & Weaknesses. Recently added portraits and BucketBrain use repository images/... assets. App display version remains 2.0. */</script>
 
 </body></html>
