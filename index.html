@@ -3030,6 +3030,7 @@ body.wb-card-help-hover #charactersSection .character-card{
 const WB_FORCED_CHARACTER_PORTRAITS = {
   'Agent Coulson||Agents of S.H.I.E.L.D.': 'images/image_de8ec8d9ec.webp',
   'Apocalypse||Classic': 'images/portrait_apocalypse_classic.webp',
+  'Apocalypse||En Sabah Nur': 'images/portrait_apocalypse_en_sabah_nur.webp',
   'Famine||First Horsemen': 'images/image_01187b3323.webp',
   'Drop Bears||Koalicus Cadericus': 'images/image_be900014a5.webp',
   'Franken-Castle||Amalgamation': 'images/image_2b0371cfc8.webp',
@@ -47755,4 +47756,31 @@ try{
 <script id="v1004-build-marker">/* v1004 public GitHub / app v2.02: corrected Angela — Aldrif Odinsdottir to 4★ rarity only, preserving all current 5★-scaled stats/abilities; added the user-supplied optimized portrait for 6★ Apocalypse — En Sabah Nur at images/portrait_apocalypse_en_sabah_nur.webp. */</script>
 
 <script id="v1005-build-marker">/* v1005 public GitHub / app v2.02: fixed authoritative rarity loading so stale mpqCharacterStarRatings browser data cannot override White Tiger — Ava Ayala at 2★ or Angela — Aldrif Odinsdottir at 4★. Character stats and ability values are unchanged. */</script>
+
+<script id="v1006-apocalypse-authoritative-portrait">
+/* v1006: make the user-supplied 6★ Apocalypse portrait authoritative over stale browser portrait cache entries. */
+(function wbV1006ForceApocalypsePortrait(){
+  const key='Apocalypse||En Sabah Nur';
+  const url='images/portrait_apocalypse_en_sabah_nur.webp';
+  try{
+    if(typeof BAKED_CHARACTER_PORTRAITS==='object' && BAKED_CHARACTER_PORTRAITS) BAKED_CHARACTER_PORTRAITS[key]=url;
+    if(typeof WB_FORCED_CHARACTER_PORTRAITS==='object' && WB_FORCED_CHARACTER_PORTRAITS) WB_FORCED_CHARACTER_PORTRAITS[key]=url;
+    if(typeof wbCharacterPortraitCache==='object' && wbCharacterPortraitCache){
+      wbCharacterPortraitCache[key]=url;
+      if(typeof wbPersistCharacterPortraitCache==='function') wbPersistCharacterPortraitCache();
+      else if(typeof WB_CHARACTER_PORTRAIT_CACHE_KEY!=='undefined') localStorage.setItem(WB_CHARACTER_PORTRAIT_CACHE_KEY,JSON.stringify(wbCharacterPortraitCache));
+    }
+    try{ if(typeof wbCharacterPortraitMissingThisSession!=='undefined') wbCharacterPortraitMissingThisSession.delete(key); }catch(_e){}
+    document.querySelectorAll(`img[data-character-portrait="${key}"]`).forEach(img=>{
+      try{
+        if(typeof wbApplyCharacterPortrait==='function') wbApplyCharacterPortrait(img,url,key);
+        else img.src=url;
+      }catch(_e){ img.src=url; }
+    });
+    try{ if(typeof wbUpdatePortraitStatus==='function') wbUpdatePortraitStatus(); }catch(_e){}
+  }catch(_e){}
+})();
+</script>
+<script id="v1006-build-marker">/* v1006 public GitHub / app v2.02: forced Apocalypse — En Sabah Nur's user-supplied portrait into the baked portrait map, forced portrait map, live browser portrait cache, and persisted cache so stale saved portrait data can no longer restore the Classic Apocalypse image. */</script>
+
 </body></html>
